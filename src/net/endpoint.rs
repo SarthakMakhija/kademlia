@@ -27,7 +27,7 @@ impl Endpoint {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::net::endpoint::Endpoint;
 
     #[test]
     fn endpoint_with_localhost() {

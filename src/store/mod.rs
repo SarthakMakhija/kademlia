@@ -34,7 +34,7 @@ impl Store for InMemoryStore {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::store::{InMemoryStore, Store};
 
     #[test]
     fn value_is_present_for_the_give_key() {

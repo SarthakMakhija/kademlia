@@ -1,3 +1,3 @@
-mod store;
-mod endpoint;
 mod node;
+mod store;
+pub(crate) mod net;

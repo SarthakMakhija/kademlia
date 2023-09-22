@@ -1,4 +1,4 @@
-use crate::endpoint::Endpoint;
+use crate::net::endpoint::Endpoint;
 
 #[derive(Eq, PartialEq)]
 pub(crate) struct Node {
@@ -17,7 +17,8 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::net::endpoint::Endpoint;
+    use crate::node::Node;
 
     #[test]
     fn node_equals_itself() {
