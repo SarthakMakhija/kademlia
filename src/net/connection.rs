@@ -33,7 +33,7 @@ mod tests {
         let mut tcp_connection = tcp_connection_result.unwrap();
         let payload = b"Kademlia";
         let write_result = tcp_connection.write(payload);
-        
+
         assert!(write_result.is_ok());
         assert_eq!(payload.len(), write_result.unwrap())
     }
