@@ -11,7 +11,7 @@ pub(crate) struct InMemoryStore {
 }
 
 impl InMemoryStore {
-    fn new_in_memory_store() -> InMemoryStore {
+    fn new_in_memory_store() -> Self {
         InMemoryStore {
             value_by_key: HashMap::new()
         }

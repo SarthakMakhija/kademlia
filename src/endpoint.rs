@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Endpoint {
     host: String,
     port: u16,
@@ -13,14 +13,14 @@ impl Display for Endpoint {
 }
 
 impl Endpoint {
-    fn new(host: String, port: u16) -> Self {
+    pub(crate) fn new(host: String, port: u16) -> Self {
         return Endpoint {
             host,
             port
         }
     }
 
-    fn address(&self) -> String {
+    pub(crate) fn address(&self) -> String {
         format!("{}:{}", self.host, self.port)
     }
 }
