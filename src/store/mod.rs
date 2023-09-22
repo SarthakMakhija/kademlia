@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 pub(crate) trait Store {
-    fn put(&mut self, key: Vec<u8>, value: Vec<u8>);
+    fn put_or_update(&mut self, key: Vec<u8>, value: Vec<u8>);
     fn get(&self, key: &Vec<u8>) -> Option<&Vec<u8>>;
     fn delete(&mut self, key: &Vec<u8>);
 }
@@ -19,7 +19,7 @@ impl InMemoryStore {
 }
 
 impl Store for InMemoryStore {
-    fn put(&mut self, key: Vec<u8>, value: Vec<u8>) {
+    fn put_or_update(&mut self, key: Vec<u8>, value: Vec<u8>) {
         self.value_by_key.insert(key, value);
     }
 
@@ -42,7 +42,7 @@ mod tests {
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
-        store.put(key, value);
+        store.put_or_update(key, value);
 
         let query_key = "kademlia".as_bytes().to_vec();
         let stored_value = store.get(&query_key);
@@ -50,6 +50,26 @@ mod tests {
         assert!(stored_value.is_some(), "{}", format!("value must be present for {}", String::from_utf8(query_key).unwrap()));
 
         let expected_value = "distributed hash table".as_bytes().to_vec();
+        assert_eq!(&expected_value, stored_value.unwrap())
+    }
+
+    #[test]
+    fn update_the_value_for_an_existing_key() {
+        let mut store = InMemoryStore::new_in_memory_store();
+        let key = "kademlia".as_bytes().to_vec();
+        let value = "distributed hash table".as_bytes().to_vec();
+
+        store.put_or_update(key.clone(), value);
+
+        let updated_value = "hash table".as_bytes().to_vec();
+        store.put_or_update(key, updated_value);
+
+        let query_key = "kademlia".as_bytes().to_vec();
+        let stored_value = store.get(&query_key);
+
+        assert!(stored_value.is_some(), "{}", format!("value must be present for {}", String::from_utf8(query_key).unwrap()));
+
+        let expected_value = "hash table".as_bytes().to_vec();
         assert_eq!(&expected_value, stored_value.unwrap())
     }
 
@@ -69,7 +89,7 @@ mod tests {
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
-        store.put(key, value);
+        store.put_or_update(key, value);
 
         let key_to_delete = "kademlia".as_bytes().to_vec();
         store.delete(&key_to_delete);
