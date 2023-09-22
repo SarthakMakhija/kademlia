@@ -37,7 +37,7 @@ mod tests {
     use crate::store::{InMemoryStore, Store};
 
     #[test]
-    fn value_is_present_for_the_give_key() {
+    fn get_the_value_for_the_existing_key() {
         let mut store = InMemoryStore::new_in_memory_store();
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    fn value_is_missing_for_the_give_key() {
+    fn get_value_for_the_missing_key() {
         let store = InMemoryStore::new_in_memory_store();
 
         let query_key = "non_existing_key".as_bytes().to_vec();
