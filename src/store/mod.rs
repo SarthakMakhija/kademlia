@@ -88,13 +88,14 @@ mod tests {
     #[test]
     fn correct_key_id_length() {
         let key = Key::new(
-            vec![0; 20],
+            vec![0; EXPECTED_KEY_ID_LENGTH],
             vec![10, 20, 30],
         );
 
-        assert_eq!(vec![0; 20], key.id);
+        assert_eq!(vec![0; EXPECTED_KEY_ID_LENGTH], key.id);
         assert_eq!(vec![10, 20, 30], key.key);
     }
+
     #[test]
     fn get_the_value_for_the_existing_key() {
         let mut store = InMemoryStore::new_in_memory_store();
@@ -118,10 +119,10 @@ mod tests {
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
-        store.put_or_update(Key::new(vec![1; 20], key.clone()), value);
+        store.put_or_update(Key::new(vec![1; EXPECTED_KEY_ID_LENGTH], key.clone()), value);
 
         let updated_value = "hash table".as_bytes().to_vec();
-        store.put_or_update(Key::new(vec![1; 20], key), updated_value);
+        store.put_or_update(Key::new(vec![1; EXPECTED_KEY_ID_LENGTH], key), updated_value);
 
         let query_key = "kademlia".as_bytes().to_vec();
         let stored_value = store.get(&query_key);

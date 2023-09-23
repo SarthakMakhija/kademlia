@@ -2,9 +2,11 @@ use crate::net::endpoint::Endpoint;
 
 const EXPECTED_NODE_ID_LENGTH: usize = 20;
 
+pub(crate) type NodeId = Vec<u8>;
+
 #[derive(Eq, PartialEq)]
 pub(crate) struct Node {
-    id: Vec<u8>,
+    id: NodeId,
     endpoint: Endpoint
 }
 
@@ -24,7 +26,7 @@ impl Node {
 #[cfg(test)]
 mod tests {
     use crate::net::endpoint::Endpoint;
-    use crate::node::Node;
+    use crate::node::{EXPECTED_NODE_ID_LENGTH, Node};
 
     #[test]
     #[should_panic]
@@ -47,11 +49,11 @@ mod tests {
     #[test]
     fn node_equals_other_node() {
         let node = Node::new(
-            vec![0; 20],
+            vec![0; EXPECTED_NODE_ID_LENGTH],
             Endpoint::new("localhost".to_string(), 2330)
         );
         let other_node = Node::new(
-            vec![0; 20],
+            vec![0; EXPECTED_NODE_ID_LENGTH],
             Endpoint::new("localhost".to_string(), 2330)
         );
         assert!(node.eq(&other_node))
@@ -60,11 +62,11 @@ mod tests {
     #[test]
     fn node_does_not_equal_other_node() {
         let node = Node::new(
-            vec![0; 20],
+            vec![0; EXPECTED_NODE_ID_LENGTH],
             Endpoint::new("localhost".to_string(), 2330)
         );
         let other_node = Node::new(
-            vec![1; 20],
+            vec![1; EXPECTED_NODE_ID_LENGTH],
             Endpoint::new("localhost".to_string(), 1982)
         );
         assert!(node.ne(&other_node))
