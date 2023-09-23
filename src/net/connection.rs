@@ -7,7 +7,7 @@ pub(crate) struct TcpConnection {
 }
 
 impl TcpConnection {
-    fn connect_to(endpoint: Endpoint) -> Result<TcpConnection, Error> {
+    fn establish_with(endpoint: Endpoint) -> Result<TcpConnection, Error> {
         TcpStream::connect(endpoint.address())
             .map(|tcp_stream| TcpConnection { tcp_stream })
     }
@@ -27,7 +27,7 @@ mod tests {
     fn write_to_connect_successfully() {
         let _listener = TcpListener::bind("127.0.0.1:9898").unwrap();
 
-        let tcp_connection_result = TcpConnection::connect_to(Endpoint::new("127.0.0.1".to_string(), 9898));
+        let tcp_connection_result = TcpConnection::establish_with(Endpoint::new("127.0.0.1".to_string(), 9898));
         assert!(tcp_connection_result.is_ok());
 
         let mut tcp_connection = tcp_connection_result.unwrap();
@@ -40,7 +40,7 @@ mod tests {
 
     #[test]
     fn connect_to_endpoint_fails() {
-        let tcp_connection_result = TcpConnection::connect_to(Endpoint::new("127.0.0.1".to_string(), 1010));
+        let tcp_connection_result = TcpConnection::establish_with(Endpoint::new("127.0.0.1".to_string(), 1010));
         assert!(tcp_connection_result.is_err());
     }
 }
