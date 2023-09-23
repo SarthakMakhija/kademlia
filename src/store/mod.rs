@@ -22,12 +22,6 @@ impl Key {
     }
 }
 
-pub(crate) trait Store {
-    fn put_or_update(&mut self, key: Key, value: Vec<u8>);
-    fn get(&self, key: &Vec<u8>) -> Option<&Vec<u8>>;
-    fn delete(&mut self, key: &Vec<u8>);
-}
-
 pub(crate) struct StoredValue {
     pub(crate) key_id: KeyId,
     pub(crate) value: Vec<u8>,
@@ -44,6 +38,12 @@ impl StoredValue {
     pub(crate) fn value(&self) -> &Vec<u8> {
         &self.value
     }
+}
+
+pub(crate) trait Store {
+    fn put_or_update(&mut self, key: Key, value: Vec<u8>);
+    fn get(&self, key: &Vec<u8>) -> Option<&Vec<u8>>;
+    fn delete(&mut self, key: &Vec<u8>);
 }
 
 pub(crate) struct InMemoryStore {
