@@ -29,7 +29,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn incorrect_node_id_length() {
-        let node = Node::new(
+        let _node = Node::new(
             vec![10],
             Endpoint::new("localhost".to_string(), 2330)
         );
