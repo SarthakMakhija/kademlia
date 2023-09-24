@@ -1,15 +1,19 @@
-use ripemd::{Ripemd160, Digest};
+use ripemd::{Digest, Ripemd160};
 
-const EXPECTED_ID_LENGTH: usize = 20;
+pub(crate) const EXPECTED_ID_LENGTH: usize = 20;
 
 pub(crate) struct Id {
-    id: Vec<u8>
+    pub(crate) id: Vec<u8>
 }
 
 impl Id {
     pub(crate) fn generate_from(content: String) -> Self {
+        Id::generate_from_bytes(content.as_bytes())
+    }
+
+    pub(crate) fn generate_from_bytes(content: &[u8]) -> Self {
         let mut hasher = Ripemd160::new();
-        hasher.update(content.as_bytes());
+        hasher.update(content);
 
         let result = hasher.finalize();
         Id {
@@ -21,8 +25,10 @@ impl Id {
 #[cfg(test)]
 mod tests {
     use num_bigint::{BigInt, Sign};
-    use crate::id::{EXPECTED_ID_LENGTH, Id};
+
     use hex_literal::hex;
+
+    use crate::id::{EXPECTED_ID_LENGTH, Id};
 
     #[test]
     fn id_as_big_endian() {
@@ -37,6 +43,12 @@ mod tests {
     #[test]
     fn generate_id() {
         let id = Id::generate_from("localhost:3290".to_string());
+        assert_eq!(id.id.len(), EXPECTED_ID_LENGTH);
+    }
+
+    #[test]
+    fn generate_id_from_bytes() {
+        let id = Id::generate_from_bytes("localhost:3290".as_bytes());
         assert_eq!(id.id.len(), EXPECTED_ID_LENGTH);
     }
 }

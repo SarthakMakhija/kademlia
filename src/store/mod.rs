@@ -1,8 +1,7 @@
 use std::collections::HashMap;
+use crate::id::Id;
 
-pub(crate) const EXPECTED_KEY_ID_LENGTH: usize = 20;
-
-pub(crate) type KeyId = Vec<u8>;
+pub(crate) type KeyId = Id;
 
 pub(crate) struct Key {
     pub(crate) id: KeyId,
@@ -10,13 +9,9 @@ pub(crate) struct Key {
 }
 
 impl Key {
-    pub(crate) fn new(id: Vec<u8>, key: Vec<u8>) -> Self {
-        if id.len() != EXPECTED_KEY_ID_LENGTH {
-            let error_message = format!("key id length must be {}, but was {}", EXPECTED_KEY_ID_LENGTH, id.len());
-            panic!("{}", error_message.as_str())
-        }
+    pub(crate) fn new(key: Vec<u8>) -> Self {
         Key {
-            id,
+            id: Id::generate_from_bytes(&key),
             key
         }
     }
@@ -74,25 +69,16 @@ impl Store for InMemoryStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::store::{EXPECTED_KEY_ID_LENGTH, InMemoryStore, Key, Store};
+    use crate::id::EXPECTED_ID_LENGTH;
+    use crate::store::{InMemoryStore, Key, Store};
 
     #[test]
-    #[should_panic]
-    fn incorrect_key_id_length() {
-        let _key = Key::new(
-            vec![10],
-            vec![10, 20, 30],
-        );
-    }
-
-    #[test]
-    fn correct_key_id_length() {
+    fn key_with_id_and_content() {
         let key = Key::new(
-            vec![0; EXPECTED_KEY_ID_LENGTH],
             vec![10, 20, 30],
         );
 
-        assert_eq!(vec![0; EXPECTED_KEY_ID_LENGTH], key.id);
+        assert_eq!(EXPECTED_ID_LENGTH, key.id.id.len());
         assert_eq!(vec![10, 20, 30], key.key);
     }
 
@@ -102,7 +88,7 @@ mod tests {
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
-        store.put_or_update(Key::new(vec![1; EXPECTED_KEY_ID_LENGTH], key), value);
+        store.put_or_update(Key::new(key), value);
 
         let query_key = "kademlia".as_bytes().to_vec();
         let stored_value = store.get(&query_key);
@@ -119,10 +105,10 @@ mod tests {
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
-        store.put_or_update(Key::new(vec![1; EXPECTED_KEY_ID_LENGTH], key.clone()), value);
+        store.put_or_update(Key::new(key.clone()), value);
 
         let updated_value = "hash table".as_bytes().to_vec();
-        store.put_or_update(Key::new(vec![1; EXPECTED_KEY_ID_LENGTH], key), updated_value);
+        store.put_or_update(Key::new(key), updated_value);
 
         let query_key = "kademlia".as_bytes().to_vec();
         let stored_value = store.get(&query_key);
@@ -149,7 +135,7 @@ mod tests {
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
-        store.put_or_update(Key::new(vec![1; EXPECTED_KEY_ID_LENGTH], key), value);
+        store.put_or_update(Key::new(key), value);
 
         let key_to_delete = "kademlia".as_bytes().to_vec();
         store.delete(&key_to_delete);
