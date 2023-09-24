@@ -37,7 +37,7 @@ impl Node {
 mod tests {
     use num_bigint::{BigInt, Sign};
     use crate::net::endpoint::Endpoint;
-    use crate::node::{EXPECTED_NODE_ID_LENGTH, Node};
+    use crate::net::node::{EXPECTED_NODE_ID_LENGTH, Node};
 
     #[test]
     #[should_panic]
