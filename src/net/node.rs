@@ -20,12 +20,7 @@ impl Node {
     }
 
     fn distance_from(&self, other: &Node) -> BigInt {
-        let distance: Vec<u8> = self.id.id.iter()
-            .zip(other.id.id.iter())
-            .map(|(&first_node_id, &other_node_id)| first_node_id ^ other_node_id)
-            .collect();
-
-        BigInt::from_bytes_be(Sign::Plus, &distance)
+        self.id.distance_from(&other.id)
     }
 }
 

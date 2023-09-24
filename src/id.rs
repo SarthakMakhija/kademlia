@@ -1,10 +1,11 @@
+use num_bigint::{BigInt, Sign};
 use ripemd::{Digest, Ripemd160};
 
 pub(crate) const EXPECTED_ID_LENGTH: usize = 20;
 
 #[derive(Eq, PartialEq)]
 pub(crate) struct Id {
-    pub(crate) id: Vec<u8>
+    pub(crate) id: Vec<u8>,
 }
 
 impl Id {
@@ -20,6 +21,15 @@ impl Id {
         Id {
             id: result.to_vec()
         }
+    }
+
+    pub(crate) fn distance_from(&self, other: &Id) -> BigInt {
+        let distance: Vec<u8> = self.id.iter()
+            .zip(other.id.iter())
+            .map(|(&first_id, &other_id)| first_id ^ other_id)
+            .collect();
+
+        BigInt::from_bytes_be(Sign::Plus, &distance)
     }
 }
 
@@ -51,5 +61,20 @@ mod tests {
     fn generate_id_from_bytes() {
         let id = Id::generate_from_bytes("localhost:3290".as_bytes());
         assert_eq!(id.id.len(), EXPECTED_ID_LENGTH);
+    }
+
+    #[test]
+    fn distance_of_id_from_itself() {
+        let id = Id { id: vec![0; EXPECTED_ID_LENGTH] };
+        assert_eq!(BigInt::from(0), id.distance_from(&id));
+    }
+
+    #[test]
+    fn distance_of_id_from_other_id() {
+        let id = Id { id: vec![0; EXPECTED_ID_LENGTH] };
+        let other_id = Id { id: vec![1; EXPECTED_ID_LENGTH] };
+
+        let expected_distance = BigInt::from_bytes_be(Sign::Plus, &vec![1; EXPECTED_ID_LENGTH]);
+        assert_eq!(expected_distance, id.distance_from(&other_id));
     }
 }
