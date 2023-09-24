@@ -1,3 +1,4 @@
+use num_bigint::{BigInt, Sign};
 use crate::net::endpoint::Endpoint;
 
 const EXPECTED_NODE_ID_LENGTH: usize = 20;
@@ -21,10 +22,20 @@ impl Node {
             endpoint
         }
     }
+
+    fn distance_from(&self, other: &Node) -> BigInt {
+        let distance: Vec<u8> = self.id.iter()
+            .zip(other.id.iter())
+            .map(|(&first_node_id,&other_node_id)| first_node_id ^ other_node_id)
+            .collect();
+
+        BigInt::from_bytes_be(Sign::Plus, &distance)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use num_bigint::{BigInt, Sign};
     use crate::net::endpoint::Endpoint;
     use crate::node::{EXPECTED_NODE_ID_LENGTH, Node};
 
@@ -70,5 +81,21 @@ mod tests {
             Endpoint::new("localhost".to_string(), 1982)
         );
         assert!(node.ne(&other_node))
+    }
+
+    #[test]
+    fn distance_from_other_node() {
+        let node = Node::new(
+            vec![0; EXPECTED_NODE_ID_LENGTH],
+            Endpoint::new("localhost".to_string(), 2330)
+        );
+        let other_node = Node::new(
+            vec![1; EXPECTED_NODE_ID_LENGTH],
+            Endpoint::new("localhost".to_string(), 1982)
+        );
+
+        let expected_distance = BigInt::from_bytes_be(Sign::Plus, &vec![1; EXPECTED_NODE_ID_LENGTH]);
+        let distance = node.distance_from(&other_node);
+        assert_eq!(expected_distance, distance);
     }
 }
