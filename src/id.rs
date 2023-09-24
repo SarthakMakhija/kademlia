@@ -2,6 +2,7 @@ use ripemd::{Digest, Ripemd160};
 
 pub(crate) const EXPECTED_ID_LENGTH: usize = 20;
 
+#[derive(Eq, PartialEq)]
 pub(crate) struct Id {
     pub(crate) id: Vec<u8>
 }
