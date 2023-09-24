@@ -90,6 +90,4 @@ mod tests {
         let expected_distance: u8 = 0;
         assert!(distance.eq(&BigInt::from(expected_distance)));
     }
-
-
 }
