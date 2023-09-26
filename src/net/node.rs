@@ -1,4 +1,4 @@
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt};
 
 use crate::id::Id;
 use crate::net::endpoint::Endpoint;
@@ -26,7 +26,7 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use num_bigint::{BigInt, Sign};
+    use num_bigint::{BigInt};
 
     use crate::net::endpoint::Endpoint;
     use crate::net::node::Node;
