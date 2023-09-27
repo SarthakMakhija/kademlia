@@ -7,7 +7,7 @@ pub(crate) struct RoutingTable {
 }
 
 impl RoutingTable {
-    pub(crate) fn new (node_id: NodeId) -> Self {
+    fn new (node_id: NodeId) -> Self {
         let mut buckets = Vec::with_capacity(EXPECTED_ID_LENGTH_IN_BITS);
         (0..EXPECTED_ID_LENGTH_IN_BITS).for_each(|_| buckets.push(Vec::new()));
 
@@ -31,7 +31,7 @@ impl RoutingTable {
     fn contains(&mut self, node: &Node) -> bool {
         let bucket_index = self.bucket_index(&node.id);
         let nodes = &self.buckets[bucket_index];
-        
+
         nodes.contains(node)
     }
 
