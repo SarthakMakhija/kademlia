@@ -20,8 +20,7 @@ impl Id {
         let mut hasher = Ripemd160::new();
         hasher.update(content);
 
-        let result = hasher.finalize();
-        Id::new(result.to_vec())
+        Id::new(hasher.finalize().to_vec())
     }
 
     pub(crate) fn differing_bit_position(&self, other: &Id) -> usize {
