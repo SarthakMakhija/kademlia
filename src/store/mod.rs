@@ -69,7 +69,7 @@ impl Store for InMemoryStore {
 
 #[cfg(test)]
 mod tests {
-    use crate::id::EXPECTED_ID_LENGTH;
+    use crate::id::EXPECTED_ID_LENGTH_IN_BYTES;
     use crate::store::{InMemoryStore, Key, Store};
 
     #[test]
@@ -78,7 +78,7 @@ mod tests {
             vec![10, 20, 30],
         );
 
-        assert_eq!(EXPECTED_ID_LENGTH, key.id.id.len());
+        assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, key.id.id.len());
         assert_eq!(vec![10, 20, 30], key.key);
     }
 
