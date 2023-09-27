@@ -12,7 +12,7 @@ pub(crate) struct Node {
 }
 
 impl Node {
-    fn new(endpoint: Endpoint) -> Self {
+    pub(crate) fn new(endpoint: Endpoint) -> Self {
         Node {
             id: Id::generate_from(endpoint.address()),
             endpoint,

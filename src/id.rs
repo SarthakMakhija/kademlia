@@ -4,6 +4,7 @@ use ripemd::{Digest, Ripemd160};
 const BITS_IN_BYTE: usize = 8;
 
 pub(crate) const EXPECTED_ID_LENGTH_IN_BYTES: usize = 20;
+pub(crate) const EXPECTED_ID_LENGTH_IN_BITS: usize = EXPECTED_ID_LENGTH_IN_BYTES * BITS_IN_BYTE;
 
 #[derive(Eq, PartialEq)]
 pub(crate) struct Id {
