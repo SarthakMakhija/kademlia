@@ -1,13 +1,13 @@
 use num_bigint::{BigInt, Sign};
 use ripemd::{Digest, Ripemd160};
 
-pub(crate) const EXPECTED_ID_LENGTH_IN_BYTES: usize = 20;
-
 const BITS_IN_BYTE: usize = 8;
+
+pub(crate) const EXPECTED_ID_LENGTH_IN_BYTES: usize = 20;
 
 #[derive(Eq, PartialEq)]
 pub(crate) struct Id {
-    pub(crate) id: Vec<u8>,
+    id: Vec<u8>,
     id_length_in_bits: usize,
 }
 
@@ -21,6 +21,10 @@ impl Id {
         hasher.update(content);
 
         Id::new(hasher.finalize().to_vec())
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.id.len()
     }
 
     pub(crate) fn differing_bit_position(&self, other: &Id) -> usize {

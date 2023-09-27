@@ -15,6 +15,10 @@ impl Key {
             key
         }
     }
+
+    pub(crate) fn length_key_id(&self) -> usize {
+        self.id.len()
+    }
 }
 
 pub(crate) struct StoredValue {
@@ -78,7 +82,7 @@ mod tests {
             vec![10, 20, 30],
         );
 
-        assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, key.id.id.len());
+        assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, key.length_key_id());
         assert_eq!(vec![10, 20, 30], key.key);
     }
 

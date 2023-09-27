@@ -7,7 +7,7 @@ pub(crate) type NodeId = Id;
 
 #[derive(Eq, PartialEq)]
 pub(crate) struct Node {
-    id: NodeId,
+    pub(crate) id: NodeId,
     endpoint: Endpoint,
 }
 
