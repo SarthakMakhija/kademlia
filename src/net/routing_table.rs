@@ -1,3 +1,4 @@
+use std::ops::Index;
 use crate::id::{EXPECTED_ID_LENGTH_IN_BITS};
 use crate::net::node::{Node, NodeId};
 
@@ -18,21 +19,19 @@ impl RoutingTable {
     }
 
     fn add(&mut self, node: Node) -> bool {
-        let bucket_index = self.bucket_index(&node.id);
-        let nodes = &self.buckets[bucket_index];
-
-        if !nodes.contains(&node) {
+        let (bucket_index, contains) = self.contains(&node);
+        if !contains {
             self.buckets[bucket_index].push(node);
             return true;
         }
         return false;
     }
 
-    fn contains(&mut self, node: &Node) -> bool {
+    fn contains(&mut self, node: &Node) -> (usize, bool) {
         let bucket_index = self.bucket_index(&node.id);
         let nodes = &self.buckets[bucket_index];
 
-        nodes.contains(node)
+        (bucket_index, nodes.contains(node))
     }
 
     fn bucket_index(&mut self, node_id: &NodeId) -> usize {
@@ -76,6 +75,7 @@ mod tests {
         assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
 
         let node = &Node::new(Endpoint::new("localhost".to_string(), 2379));
-        assert!(routing_table.contains(node));
+        let (_, contains) = routing_table.contains(node);
+        assert!(contains);
     }
 }
