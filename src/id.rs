@@ -20,7 +20,12 @@ impl Id {
         let mut hasher = Ripemd160::new();
         hasher.update(content);
 
-        Id::new(hasher.finalize().to_vec())
+        let id = hasher.finalize().to_vec();
+        let id_length_in_bits = id.len() * BITS_IN_BYTE;
+        Id {
+            id,
+            id_length_in_bits
+        }
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -50,7 +55,8 @@ impl Id {
         BigInt::from_bytes_be(Sign::Plus, &distance)
     }
 
-    fn new(id: Vec<u8>) -> Self {
+    #[cfg(test)]
+    pub(crate) fn new(id: Vec<u8>) -> Self {
         let id_length_in_bits = id.len() * BITS_IN_BYTE;
         Id {
             id,
