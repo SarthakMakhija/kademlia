@@ -1,4 +1,3 @@
-use std::ops::Index;
 use crate::id::{EXPECTED_ID_LENGTH_IN_BITS};
 use crate::net::node::{Node, NodeId};
 
@@ -23,6 +22,22 @@ impl RoutingTable {
         if !contains {
             self.buckets[bucket_index].push(node);
             return true;
+        }
+        return false;
+    }
+
+    fn remove(&mut self, node: &Node) -> bool {
+        let (bucket_index, contains) = self.contains(node);
+        if contains {
+            let node_index = self.buckets[bucket_index]
+                .iter()
+                .position(|existing_node| existing_node.eq(node));
+
+            if let Some(index) = node_index {
+                self.buckets[bucket_index].remove(index);
+                return true;
+            }
+            return false;
         }
         return false;
     }
@@ -68,7 +83,32 @@ mod tests {
     }
 
     #[test]
-    fn contains_a_node() {
+    fn remove_an_existing_node() {
+        let id: u16 = 255;
+
+        let mut routing_table = RoutingTable::new(Id::new(id.to_be_bytes().to_vec()));
+        assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
+
+        let node = &Node::new(Endpoint::new("localhost".to_string(), 2379));
+        let deleted = routing_table.remove(node);
+        assert!(deleted);
+
+        let (_, contains) = routing_table.contains(node);
+        assert_eq!(false, contains);
+    }
+
+    #[test]
+    fn do_not_remove_a_non_existing_node() {
+        let id: u16 = 255;
+        let mut routing_table = RoutingTable::new(Id::new(id.to_be_bytes().to_vec()));
+
+        let node = &Node::new(Endpoint::new("localhost".to_string(), 1000));
+        let deleted = routing_table.remove(node);
+        assert_eq!(false, deleted);
+    }
+
+    #[test]
+    fn contains_an_existing_node() {
         let id: u16 = 511;
 
         let mut routing_table = RoutingTable::new(Id::new(id.to_be_bytes().to_vec()));
@@ -77,5 +117,15 @@ mod tests {
         let node = &Node::new(Endpoint::new("localhost".to_string(), 2379));
         let (_, contains) = routing_table.contains(node);
         assert!(contains);
+    }
+
+    #[test]
+    fn does_not_contain_a_node() {
+        let id: u16 = 511;
+        let mut routing_table = RoutingTable::new(Id::new(id.to_be_bytes().to_vec()));
+
+        let node = &Node::new(Endpoint::new("unknown".to_string(), 1010));
+        let (_, contains) = routing_table.contains(node);
+        assert_eq!(false, contains);
     }
 }
