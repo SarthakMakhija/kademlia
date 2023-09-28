@@ -5,7 +5,7 @@ use crate::net::endpoint::Endpoint;
 
 pub(crate) type NodeId = Id;
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone)]
 pub(crate) struct Node {
     pub(crate) id: NodeId,
     endpoint: Endpoint,
@@ -15,6 +15,14 @@ impl Node {
     pub(crate) fn new(endpoint: Endpoint) -> Self {
         Node {
             id: Id::generate_from(endpoint.address()),
+            endpoint,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_with_id(endpoint: Endpoint, id: Id) -> Self {
+        Node {
+            id,
             endpoint,
         }
     }

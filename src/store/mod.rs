@@ -50,7 +50,7 @@ pub(crate) struct InMemoryStore {
 }
 
 impl InMemoryStore {
-    fn new_in_memory_store() -> Self {
+    fn new() -> Self {
         InMemoryStore {
             value_by_key: HashMap::new()
         }
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn get_the_value_for_the_existing_key() {
-        let mut store = InMemoryStore::new_in_memory_store();
+        let mut store = InMemoryStore::new();
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn update_the_value_for_an_existing_key() {
-        let mut store = InMemoryStore::new_in_memory_store();
+        let mut store = InMemoryStore::new();
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn get_value_for_the_missing_key() {
-        let store = InMemoryStore::new_in_memory_store();
+        let store = InMemoryStore::new();
 
         let query_key = "non_existing_key".as_bytes().to_vec();
         let stored_value = store.get(&query_key);
@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn delete_the_value_for_an_existing_key() {
-        let mut store = InMemoryStore::new_in_memory_store();
+        let mut store = InMemoryStore::new();
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 

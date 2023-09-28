@@ -6,7 +6,7 @@ const BITS_IN_BYTE: usize = 8;
 pub(crate) const EXPECTED_ID_LENGTH_IN_BYTES: usize = 20;
 pub(crate) const EXPECTED_ID_LENGTH_IN_BITS: usize = EXPECTED_ID_LENGTH_IN_BYTES * BITS_IN_BYTE;
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug)]
 pub(crate) struct Id {
     id: Vec<u8>,
     id_length_in_bits: usize,
