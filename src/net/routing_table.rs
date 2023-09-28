@@ -1,4 +1,3 @@
-use crate::id::{EXPECTED_ID_LENGTH_IN_BITS};
 use crate::net::node::{Node, NodeId};
 
 pub(crate) struct RoutingTable {
@@ -8,8 +7,8 @@ pub(crate) struct RoutingTable {
 
 impl RoutingTable {
     fn new (node_id: NodeId) -> Self {
-        let mut buckets = Vec::with_capacity(EXPECTED_ID_LENGTH_IN_BITS);
-        (0..EXPECTED_ID_LENGTH_IN_BITS).for_each(|_| buckets.push(Vec::new()));
+        let mut buckets = Vec::with_capacity(node_id.id_length_in_bits);
+        (0..node_id.id_length_in_bits).for_each(|_| buckets.push(Vec::new()));
 
         RoutingTable {
             buckets,
@@ -51,8 +50,8 @@ impl RoutingTable {
 
     fn bucket_index(&mut self, node_id: &NodeId) -> usize {
         let bucket_index = self.node_id.differing_bit_position(node_id);
-        assert!(bucket_index > 0);
-        assert!(bucket_index < EXPECTED_ID_LENGTH_IN_BITS);
+        assert!(bucket_index >= 0);
+        assert!(bucket_index < node_id.id_length_in_bits);
 
         bucket_index
     }
