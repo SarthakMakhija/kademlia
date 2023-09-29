@@ -4,7 +4,7 @@ use crate::id::Id;
 use crate::net::node::{Node, NodeId};
 
 pub(crate) struct ClosestNeighbors {
-    node_ids: HashSet<NodeId>,
+    pub(crate) node_ids: HashSet<NodeId>,
     nodes: Vec<Node>,
     target: Id,
     maximum_capacity: usize,

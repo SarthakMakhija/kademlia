@@ -1,3 +1,5 @@
+use crate::id::Id;
+use crate::net::closest_neighbors::ClosestNeighbors;
 use crate::net::node::{Node, NodeId};
 
 pub(crate) struct RoutingTable {
@@ -6,7 +8,7 @@ pub(crate) struct RoutingTable {
 }
 
 impl RoutingTable {
-    fn new (node_id: NodeId) -> Self {
+    fn new(node_id: NodeId) -> Self {
         let mut buckets = Vec::with_capacity(node_id.id_length_in_bits);
         (0..node_id.id_length_in_bits).for_each(|_| buckets.push(Vec::new()));
 
@@ -48,9 +50,43 @@ impl RoutingTable {
         (bucket_index, nodes.contains(node))
     }
 
+    fn closest_neighbors(&self, id: &Id, number_of_neighbors: usize) -> ClosestNeighbors {
+        let bucket_index = self.node_id.differing_bit_position(id);
+        let mut closest_neighbors = ClosestNeighbors::new(number_of_neighbors, id.clone());
+
+        for bucket_index in self.all_adjacent_bucket_indices(bucket_index) {
+            if !self.buckets[bucket_index].is_empty() {
+                let nodes = &self.buckets[bucket_index];
+                if !closest_neighbors.add_missing(nodes) { break; }
+            }
+        }
+        closest_neighbors.sort_ascending_by_distance();
+        return closest_neighbors;
+    }
+
+    //TODO: confirm this from the paper
+    fn all_adjacent_bucket_indices(&self, bucket_index: usize) -> Vec<usize> {
+        let mut low_bucket_index: isize = bucket_index as isize - 1;
+        let mut high_bucket_index: usize = bucket_index + 1;
+
+        let mut adjacent_indices = Vec::new();
+        adjacent_indices.push(bucket_index);
+
+        while adjacent_indices.len() < self.node_id.id_length_in_bits {
+            if high_bucket_index < self.node_id.id_length_in_bits {
+                adjacent_indices.push(high_bucket_index);
+            }
+            if low_bucket_index >= 0 {
+                adjacent_indices.push(low_bucket_index as usize);
+            }
+            high_bucket_index += 1;
+            low_bucket_index -= 1;
+        }
+        return adjacent_indices;
+    }
+
     fn bucket_index(&mut self, node_id: &NodeId) -> usize {
         let bucket_index = self.node_id.differing_bit_position(node_id);
-        assert!(bucket_index >= 0);
         assert!(bucket_index < node_id.id_length_in_bits);
 
         bucket_index
@@ -126,5 +162,97 @@ mod tests {
         let node = &Node::new(Endpoint::new("unknown".to_string(), 1010));
         let (_, contains) = routing_table.contains(node);
         assert_eq!(false, contains);
+    }
+
+    #[test]
+    fn single_closest_neighbor_1() {
+        let mut routing_table = RoutingTable::new(Id::new(511u16.to_be_bytes().to_vec()));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2379),
+                Id::new(511u16.to_be_bytes().to_vec()),
+            )
+        ));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2380),
+                Id::new(255u16.to_be_bytes().to_vec()),
+            )
+        ));
+
+        let closest_neighbors = routing_table.closest_neighbors(
+            &Id::new(255u16.to_be_bytes().to_vec()),
+            1,
+        );
+        assert_eq!(&Id::new(255u16.to_be_bytes().to_vec()), closest_neighbors.node_ids.iter().next().unwrap());
+    }
+
+    #[test]
+    fn single_closest_neighbor_2() {
+        let mut routing_table = RoutingTable::new(Id::new(511u16.to_be_bytes().to_vec()));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2379),
+                Id::new(511u16.to_be_bytes().to_vec()),
+            )
+        ));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2380),
+                Id::new(255u16.to_be_bytes().to_vec()),
+            )
+        ));
+
+        let closest_neighbors = routing_table.closest_neighbors(
+            &Id::new(510u16.to_be_bytes().to_vec()),
+            1,
+        );
+        assert_eq!(&Id::new(511u16.to_be_bytes().to_vec()), closest_neighbors.node_ids.iter().next().unwrap());
+    }
+
+    #[test]
+    fn single_closest_neighbor_3() {
+        let mut routing_table = RoutingTable::new(Id::new(511u16.to_be_bytes().to_vec()));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2379),
+                Id::new(511u16.to_be_bytes().to_vec()),
+            )
+        ));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2380),
+                Id::new(255u16.to_be_bytes().to_vec()),
+            )
+        ));
+
+        let closest_neighbors = routing_table.closest_neighbors(
+            &Id::new(247u16.to_be_bytes().to_vec()),
+            1,
+        );
+        assert_eq!(&Id::new(255u16.to_be_bytes().to_vec()), closest_neighbors.node_ids.iter().next().unwrap());
+    }
+
+    #[test]
+    fn single_closest_neighbor_4() {
+        let mut routing_table = RoutingTable::new(Id::new(511u16.to_be_bytes().to_vec()));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2379),
+                Id::new(511u16.to_be_bytes().to_vec()),
+            )
+        ));
+        assert!(routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 2380),
+                Id::new(509u16.to_be_bytes().to_vec()),
+            )
+        ));
+
+        let closest_neighbors = routing_table.closest_neighbors(
+            &Id::new(255u16.to_be_bytes().to_vec()),
+            1,
+        );
+        assert_eq!(&Id::new(509u16.to_be_bytes().to_vec()), closest_neighbors.node_ids.iter().next().unwrap());
     }
 }
