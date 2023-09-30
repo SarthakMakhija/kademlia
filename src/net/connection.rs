@@ -6,15 +6,15 @@ use tokio::net::TcpStream;
 
 use crate::net::endpoint::Endpoint;
 
-pub(crate) struct TcpConnection {
+pub(crate) struct AsyncTcpConnection {
     tcp_stream: TcpStream,
 }
 
-impl TcpConnection {
-    async fn establish_with(endpoint: Endpoint) -> Result<TcpConnection, Error> {
+impl AsyncTcpConnection {
+    async fn establish_with(endpoint: Endpoint) -> Result<AsyncTcpConnection, Error> {
         TcpStream::connect(endpoint.address())
             .await
-            .map(|tcp_stream| TcpConnection { tcp_stream })
+            .map(|tcp_stream| AsyncTcpConnection { tcp_stream })
     }
 
     async fn write(&mut self, payload: &[u8]) -> io::Result<()> {
@@ -27,7 +27,7 @@ impl TcpConnection {
 mod tests {
     use tokio::net::TcpListener;
 
-    use crate::net::connection::TcpConnection;
+    use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
 
     #[tokio::test]
@@ -36,7 +36,7 @@ mod tests {
         assert!(listener_result.is_ok());
 
         let tcp_connection_result =
-            TcpConnection::establish_with(Endpoint::new("localhost".to_string(), 9898)).await;
+            AsyncTcpConnection::establish_with(Endpoint::new("localhost".to_string(), 9898)).await;
         assert!(tcp_connection_result.is_ok());
 
         let mut tcp_connection = tcp_connection_result.unwrap();
@@ -49,7 +49,7 @@ mod tests {
     #[tokio::test]
     async fn connect_to_endpoint_fails() {
         let tcp_connection_result =
-            TcpConnection::establish_with(Endpoint::new("localhost".to_string(), 1010)).await;
+            AsyncTcpConnection::establish_with(Endpoint::new("localhost".to_string(), 1010)).await;
         assert!(tcp_connection_result.is_err());
     }
 }
