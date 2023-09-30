@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::id::Id;
+use std::collections::HashMap;
 
 pub(crate) type KeyId = Id;
 
@@ -10,10 +10,12 @@ pub(crate) struct Key {
 
 impl Key {
     pub(crate) fn new(key: Vec<u8>) -> Self {
-        Key {
-            id: Id::generate_from_bytes(&key),
-            key
-        }
+        let key_id = Id::generate_from_bytes(&key);
+        Key::new_with_id(key, key_id)
+    }
+
+    pub(crate) fn new_with_id(key: Vec<u8>, id: KeyId) -> Self {
+        Key { id, key }
     }
 
     pub(crate) fn length_key_id(&self) -> usize {
@@ -28,10 +30,7 @@ pub(crate) struct StoredValue {
 
 impl StoredValue {
     pub(crate) fn new(key_id: KeyId, value: Vec<u8>) -> Self {
-        StoredValue {
-            key_id,
-            value
-        }
+        StoredValue { key_id, value }
     }
 
     pub(crate) fn value(&self) -> &Vec<u8> {
@@ -52,18 +51,21 @@ pub(crate) struct InMemoryStore {
 impl InMemoryStore {
     fn new() -> Self {
         InMemoryStore {
-            value_by_key: HashMap::new()
+            value_by_key: HashMap::new(),
         }
     }
 }
 
 impl Store for InMemoryStore {
     fn put_or_update(&mut self, key: Key, value: Vec<u8>) {
-        self.value_by_key.insert(key.key, StoredValue::new(key.id, value));
+        self.value_by_key
+            .insert(key.key, StoredValue::new(key.id, value));
     }
 
     fn get(&self, key: &Vec<u8>) -> Option<&Vec<u8>> {
-        self.value_by_key.get(key).map(|stored_value| stored_value.value())
+        self.value_by_key
+            .get(key)
+            .map(|stored_value| stored_value.value())
     }
 
     fn delete(&mut self, key: &Vec<u8>) {
@@ -78,9 +80,7 @@ mod tests {
 
     #[test]
     fn key_with_id_and_content() {
-        let key = Key::new(
-            vec![10, 20, 30],
-        );
+        let key = Key::new(vec![10, 20, 30]);
 
         assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, key.length_key_id());
         assert_eq!(vec![10, 20, 30], key.key);
@@ -97,7 +97,14 @@ mod tests {
         let query_key = "kademlia".as_bytes().to_vec();
         let stored_value = store.get(&query_key);
 
-        assert!(stored_value.is_some(), "{}", format!("value must be present for {}", String::from_utf8(query_key).unwrap()));
+        assert!(
+            stored_value.is_some(),
+            "{}",
+            format!(
+                "value must be present for {}",
+                String::from_utf8(query_key).unwrap()
+            )
+        );
 
         let expected_value = "distributed hash table".as_bytes().to_vec();
         assert_eq!(&expected_value, stored_value.unwrap())
@@ -117,7 +124,14 @@ mod tests {
         let query_key = "kademlia".as_bytes().to_vec();
         let stored_value = store.get(&query_key);
 
-        assert!(stored_value.is_some(), "{}", format!("value must be present for {}", String::from_utf8(query_key).unwrap()));
+        assert!(
+            stored_value.is_some(),
+            "{}",
+            format!(
+                "value must be present for {}",
+                String::from_utf8(query_key).unwrap()
+            )
+        );
 
         let expected_value = "hash table".as_bytes().to_vec();
         assert_eq!(&expected_value, stored_value.unwrap())
@@ -130,7 +144,14 @@ mod tests {
         let query_key = "non_existing_key".as_bytes().to_vec();
         let stored_value = store.get(&query_key);
 
-        assert!(stored_value.is_none(), "{}", format!("value must be missing for {}", String::from_utf8(query_key).unwrap()));
+        assert!(
+            stored_value.is_none(),
+            "{}",
+            format!(
+                "value must be missing for {}",
+                String::from_utf8(query_key).unwrap()
+            )
+        );
     }
 
     #[test]
@@ -145,6 +166,13 @@ mod tests {
         store.delete(&key_to_delete);
 
         let stored_value = store.get(&key_to_delete);
-        assert!(stored_value.is_none(), "{}", format!("value must not be present for {}", String::from_utf8(key_to_delete).unwrap()));
+        assert!(
+            stored_value.is_none(),
+            "{}",
+            format!(
+                "value must not be present for {}",
+                String::from_utf8(key_to_delete).unwrap()
+            )
+        );
     }
 }
