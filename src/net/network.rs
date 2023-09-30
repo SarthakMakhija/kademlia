@@ -51,8 +51,8 @@ mod tests {
     use tokio::net::TcpListener;
 
     use crate::message::Message;
-    use crate::net::async_network::AsyncNetwork;
     use crate::net::endpoint::Endpoint;
+    use crate::net::network::AsyncNetwork;
 
     #[tokio::test]
     async fn send_message_successfully() {
