@@ -43,17 +43,23 @@ impl ClosestNeighbors {
 #[cfg(test)]
 mod tests {
     use crate::id::Id;
-    use crate::net::closest_neighbors::ClosestNeighbors;
     use crate::net::endpoint::Endpoint;
     use crate::net::node::Node;
+    use crate::routing::neighbors::ClosestNeighbors;
 
     #[test]
     fn adds_nodes_to_closest_neighbors() {
-        let id: u16 = 511;       //0000_0001 1111_1111 => big_endian => 1111_1111 1111_0001
+        let id: u16 = 511; //0000_0001 1111_1111 => big_endian => 1111_1111 1111_0001
         let target = Id::new(id.to_be_bytes().to_vec());
 
-        let node_a = Node::new_with_id(Endpoint::new("localhost".to_string(), 1239), Id::new(vec![10, 20]));
-        let node_b = Node::new_with_id(Endpoint::new("localhost".to_string(), 1243), Id::new(vec![40, 20]));
+        let node_a = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1239),
+            Id::new(vec![10, 20]),
+        );
+        let node_b = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1243),
+            Id::new(vec![40, 20]),
+        );
         let nodes = vec![node_a, node_b];
 
         let mut closest_neighbors = ClosestNeighbors::new(1, target);
@@ -65,12 +71,21 @@ mod tests {
 
     #[test]
     fn adds_unique_nodes_to_closest_neighbors() {
-        let id: u16 = 511;       //0000_0001 1111_1111 => big_endian => 1111_1111 1111_0001
+        let id: u16 = 511; //0000_0001 1111_1111 => big_endian => 1111_1111 1111_0001
         let target = Id::new(id.to_be_bytes().to_vec());
 
-        let node_a = Node::new_with_id(Endpoint::new("localhost".to_string(), 1239), Id::new(vec![10, 20]));
-        let node_b = Node::new_with_id(Endpoint::new("localhost".to_string(), 1243), Id::new(vec![40, 20]));
-        let node_c = Node::new_with_id(Endpoint::new("localhost".to_string(), 1239), Id::new(vec![10, 20]));
+        let node_a = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1239),
+            Id::new(vec![10, 20]),
+        );
+        let node_b = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1243),
+            Id::new(vec![40, 20]),
+        );
+        let node_c = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1239),
+            Id::new(vec![10, 20]),
+        );
         let nodes = vec![node_a, node_b, node_c];
 
         let mut closest_neighbors = ClosestNeighbors::new(2, target);
@@ -82,18 +97,30 @@ mod tests {
 
     #[test]
     fn sorts_closest_neighbors_by_distance_from_target() {
-        let id: u16 = 247;       //0000_0000 1111_0111 => big_endian => 1111_0111 0000_0000
+        let id: u16 = 247; //0000_0000 1111_0111 => big_endian => 1111_0111 0000_0000
         let target = Id::new(id.to_be_bytes().to_vec());
 
-        let node_a = Node::new_with_id(Endpoint::new("localhost".to_string(), 1243), Id::new(511u16.to_be_bytes().to_vec()));
-        let node_b = Node::new_with_id(Endpoint::new("localhost".to_string(), 1239), Id::new(255u16.to_be_bytes().to_vec()));
+        let node_a = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1243),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        );
+        let node_b = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1239),
+            Id::new(255u16.to_be_bytes().to_vec()),
+        );
         let nodes = vec![node_a, node_b];
 
         let mut closest_neighbors = ClosestNeighbors::new(2, target);
         closest_neighbors.add_missing(&nodes);
         closest_neighbors.sort_ascending_by_distance();
 
-        assert_eq!(&Id::new(255u16.to_be_bytes().to_vec()), &closest_neighbors.nodes[0].id);
-        assert_eq!(&Id::new(511u16.to_be_bytes().to_vec()), &closest_neighbors.nodes[1].id);
+        assert_eq!(
+            &Id::new(255u16.to_be_bytes().to_vec()),
+            &closest_neighbors.nodes[0].id
+        );
+        assert_eq!(
+            &Id::new(511u16.to_be_bytes().to_vec()),
+            &closest_neighbors.nodes[1].id
+        );
     }
 }
