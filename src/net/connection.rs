@@ -11,13 +11,13 @@ pub(crate) struct AsyncTcpConnection {
 }
 
 impl AsyncTcpConnection {
-    async fn establish_with(endpoint: Endpoint) -> Result<AsyncTcpConnection, Error> {
+    pub(crate) async fn establish_with(endpoint: &Endpoint) -> Result<AsyncTcpConnection, Error> {
         TcpStream::connect(endpoint.address())
             .await
             .map(|tcp_stream| AsyncTcpConnection { tcp_stream })
     }
 
-    async fn write(&mut self, payload: &[u8]) -> io::Result<()> {
+    pub(crate) async fn write(&mut self, payload: &[u8]) -> io::Result<()> {
         self.tcp_stream.write_all(payload).await?;
         Ok(())
     }
@@ -36,7 +36,7 @@ mod tests {
         assert!(listener_result.is_ok());
 
         let tcp_connection_result =
-            AsyncTcpConnection::establish_with(Endpoint::new("localhost".to_string(), 9898)).await;
+            AsyncTcpConnection::establish_with(&Endpoint::new("localhost".to_string(), 9898)).await;
         assert!(tcp_connection_result.is_ok());
 
         let mut tcp_connection = tcp_connection_result.unwrap();
@@ -49,7 +49,7 @@ mod tests {
     #[tokio::test]
     async fn connect_to_endpoint_fails() {
         let tcp_connection_result =
-            AsyncTcpConnection::establish_with(Endpoint::new("localhost".to_string(), 1010)).await;
+            AsyncTcpConnection::establish_with(&Endpoint::new("localhost".to_string(), 1010)).await;
         assert!(tcp_connection_result.is_err());
     }
 }

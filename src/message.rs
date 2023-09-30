@@ -6,7 +6,7 @@ use crate::net::node::NodeId;
 use crate::store::KeyId;
 
 #[derive(Serialize, Deserialize)]
-enum Messages {
+pub(crate) enum Message {
     Store {
         key: Vec<u8>,
         key_id: KeyId,
@@ -17,58 +17,49 @@ enum Messages {
         key_id: KeyId,
     },
     FindNode {
-        node_id: NodeId
+        node_id: NodeId,
     },
 }
 
-impl Messages {
-    fn store_type(key: Vec<u8>, value: Vec<u8>) -> Messages {
+impl Message {
+    pub(crate) fn store_type(key: Vec<u8>, value: Vec<u8>) -> Message {
         let key_id = KeyId::generate_from_bytes(&key);
-        Messages::Store {
-            key,
-            key_id,
-            value,
-        }
+        Message::Store { key, key_id, value }
     }
 
-    fn find_value_type(key: Vec<u8>) -> Messages {
+    pub(crate) fn find_value_type(key: Vec<u8>) -> Message {
         let key_id = KeyId::generate_from_bytes(&key);
-        Messages::FindValue {
-            key,
-            key_id,
-        }
+        Message::FindValue { key, key_id }
     }
 
-    fn find_node_type(node_id: NodeId) -> Messages {
-        Messages::FindNode {
-            node_id
-        }
+    pub(crate) fn find_node_type(node_id: NodeId) -> Message {
+        Message::FindNode { node_id }
     }
 
-    fn deserialize_from(bytes: &[u8]) -> bincode::Result<Messages> {
+    pub(crate) fn deserialize_from(bytes: &[u8]) -> bincode::Result<Message> {
         bincode::deserialize(bytes)
     }
 
-    fn serialize(&self) -> bincode::Result<Vec<u8>> {
+    pub(crate) fn serialize(&self) -> bincode::Result<Vec<u8>> {
         bincode::serialize(self)
     }
 
-    fn is_store_type(&self) -> bool {
-        if let Messages::Store { .. } = self {
+    pub(crate) fn is_store_type(&self) -> bool {
+        if let Message::Store { .. } = self {
             return true;
         }
         return false;
     }
 
-    fn is_find_value_type(&self) -> bool {
-        if let Messages::FindValue { .. } = self {
+    pub(crate) fn is_find_value_type(&self) -> bool {
+        if let Message::FindValue { .. } = self {
             return true;
         }
         return false;
     }
 
-    fn is_find_node_type(&self) -> bool {
-        if let Messages::FindNode { .. } = self {
+    pub(crate) fn is_find_node_type(&self) -> bool {
+        if let Message::FindNode { .. } = self {
             return true;
         }
         return false;
@@ -78,21 +69,25 @@ impl Messages {
 #[cfg(test)]
 mod tests {
     use crate::id::EXPECTED_ID_LENGTH_IN_BYTES;
-    use crate::message::Messages;
+    use crate::message::Message;
     use crate::net::node::NodeId;
 
     #[test]
     fn serialize_deserialize_a_store_message() {
-        let store_type = Messages::store_type(
+        let store_type = Message::store_type(
             "kademlia".as_bytes().to_vec(),
             "distributed hash table".as_bytes().to_vec(),
         );
         let serialized = store_type.serialize().unwrap();
-        let deserialized = Messages::deserialize_from(&serialized).unwrap();
+        let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_store_type());
         match deserialized {
-            Messages::Store { key, key_id: _, value } => {
+            Message::Store {
+                key,
+                key_id: _,
+                value,
+            } => {
                 assert_eq!("kademlia", String::from_utf8(key).unwrap());
                 assert_eq!("distributed hash table", String::from_utf8(value).unwrap());
             }
@@ -104,15 +99,15 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_a_find_value_message() {
-        let store_type = Messages::find_value_type(
-            "kademlia".as_bytes().to_vec(),
-        );
+        let store_type = Message::find_value_type("kademlia".as_bytes().to_vec());
         let serialized = store_type.serialize().unwrap();
-        let deserialized = Messages::deserialize_from(&serialized).unwrap();
+        let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_find_value_type());
         match deserialized {
-            Messages::FindValue { key, key_id: _ } => assert_eq!("kademlia", String::from_utf8(key).unwrap()),
+            Message::FindValue { key, key_id: _ } => {
+                assert_eq!("kademlia", String::from_utf8(key).unwrap())
+            }
             _ => {
                 panic!("Expected findValue type message, but was not");
             }
@@ -121,15 +116,16 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_a_find_node_message() {
-        let store_type = Messages::find_node_type(
-            NodeId::generate_from("localhost:8989".to_string())
-        );
+        let store_type =
+            Message::find_node_type(NodeId::generate_from("localhost:8989".to_string()));
         let serialized = store_type.serialize().unwrap();
-        let deserialized = Messages::deserialize_from(&serialized).unwrap();
+        let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_find_node_type());
         match deserialized {
-            Messages::FindNode { node_id } => assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, node_id.len()),
+            Message::FindNode { node_id } => {
+                assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, node_id.len())
+            }
             _ => {
                 panic!("Expected findNode type message, but was not");
             }
