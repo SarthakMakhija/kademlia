@@ -1,5 +1,5 @@
 pub(crate) mod endpoint;
+pub(crate) mod node;
 mod connection;
-mod node;
 mod routing_table;
 mod closest_neighbors;

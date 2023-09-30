@@ -1,11 +1,13 @@
 use num_bigint::{BigInt, Sign};
 use ripemd::{Digest, Ripemd160};
+use serde::Serialize;
+use serde::Deserialize;
 
 const BITS_IN_BYTE: usize = 8;
 
 pub(crate) const EXPECTED_ID_LENGTH_IN_BYTES: usize = 20;
 
-#[derive(Eq, PartialEq, Clone, Hash, Debug)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Serialize, Deserialize)]
 pub(crate) struct Id {
     id: Vec<u8>,
     pub(crate) id_length_in_bits: usize,
