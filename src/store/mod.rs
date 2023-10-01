@@ -43,8 +43,8 @@ impl StoredValue {
 
 pub(crate) trait Store: Send + Sync {
     fn put_or_update(&self, key: Key, value: Vec<u8>);
-    fn delete(&self, key: &Vec<u8>);
-    fn get(&self, key: &Vec<u8>) -> Option<Vec<u8>>;
+    fn delete(&self, key: &[u8]);
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>>;
 }
 
 pub(crate) struct InMemoryStore {
@@ -70,11 +70,11 @@ impl Store for InMemoryStore {
             .insert(key.key, StoredValue::new(key.id, value));
     }
 
-    fn delete(&self, key: &Vec<u8>) {
+    fn delete(&self, key: &[u8]) {
         self.value_by_key.borrow_mut().remove_entry(key);
     }
 
-    fn get(&self, key: &Vec<u8>) -> Option<Vec<u8>> {
+    fn get(&self, key: &[u8]) -> Option<Vec<u8>> {
         let value_by_key = self.value_by_key.borrow();
         value_by_key
             .get(key)
@@ -106,15 +106,15 @@ mod tests {
 
         store.put_or_update(Key::new(key), value);
 
-        let query_key = "kademlia".as_bytes().to_vec();
-        let stored_value = store.get(&query_key);
+        let query_key = "kademlia".as_bytes();
+        let stored_value = store.get(query_key);
 
         assert!(
             stored_value.is_some(),
             "{}",
             format!(
                 "value must be present for {}",
-                String::from_utf8(query_key).unwrap()
+                String::from_utf8(query_key.to_vec()).unwrap()
             )
         );
 
@@ -133,15 +133,15 @@ mod tests {
         let updated_value = "hash table".as_bytes().to_vec();
         store.put_or_update(Key::new(key), updated_value);
 
-        let query_key = "kademlia".as_bytes().to_vec();
-        let stored_value = store.get(&query_key);
+        let query_key = "kademlia".as_bytes();
+        let stored_value = store.get(query_key);
 
         assert!(
             stored_value.is_some(),
             "{}",
             format!(
                 "value must be present for {}",
-                String::from_utf8(query_key).unwrap()
+                String::from_utf8(query_key.to_vec()).unwrap()
             )
         );
 
@@ -153,15 +153,15 @@ mod tests {
     fn get_value_for_the_missing_key() {
         let store = InMemoryStore::new();
 
-        let query_key = "non_existing_key".as_bytes().to_vec();
-        let stored_value = store.get(&query_key);
+        let query_key = "non_existing_key".as_bytes();
+        let stored_value = store.get(query_key);
 
         assert!(
             stored_value.is_none(),
             "{}",
             format!(
                 "value must be missing for {}",
-                String::from_utf8(query_key).unwrap()
+                String::from_utf8(query_key.to_vec()).unwrap()
             )
         );
     }
@@ -174,16 +174,16 @@ mod tests {
 
         store.put_or_update(Key::new(key), value);
 
-        let key_to_delete = "kademlia".as_bytes().to_vec();
-        store.delete(&key_to_delete);
+        let key_to_delete = "kademlia".as_bytes();
+        store.delete(key_to_delete);
 
-        let stored_value = store.get(&key_to_delete);
+        let stored_value = store.get(key_to_delete);
         assert!(
             stored_value.is_none(),
             "{}",
             format!(
                 "value must not be present for {}",
-                String::from_utf8(key_to_delete).unwrap()
+                String::from_utf8(key_to_delete.to_vec()).unwrap()
             )
         );
     }
