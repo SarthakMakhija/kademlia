@@ -31,6 +31,10 @@ impl MessageExecutor {
             .map(|_| MessageResponse::new(receiver))
     }
 
+    pub(crate) fn shutdown(&self) -> Result<MessageResponse, SendError<ChanneledMessage>> {
+        self.submit(Message::shutdown_type())
+    }
+
     fn start(&self, receiver: Receiver<ChanneledMessage>, store: Arc<dyn Store>) {
         thread::spawn(move || loop {
             match receiver.recv() {
@@ -135,7 +139,7 @@ mod tests {
         let store = Arc::new(InMemoryStore::new());
         let executor = MessageExecutor::new(store.clone());
 
-        let submit_result = executor.submit(Message::shutdown_type());
+        let submit_result = executor.shutdown();
         assert!(submit_result.is_ok());
 
         let message_response = submit_result.unwrap();
