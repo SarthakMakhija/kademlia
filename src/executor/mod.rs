@@ -29,9 +29,18 @@ impl MessageExecutor {
         message: Message,
     ) -> Result<MessageResponse, SendError<ChanneledMessage>> {
         let (sender, receiver) = mpsc::channel();
-        self.sender
-            .send(ChanneledMessage::new(message, sender))
-            .map(|_| MessageResponse::new(receiver))
+        let result = self.sender.send(ChanneledMessage::new(message, sender));
+        return match result {
+            Ok(r) => {
+                println!("ok in sending, ");
+                Ok(MessageResponse::new(receiver))
+            }
+            Err(err) => {
+                println!("received send error ..");
+                Err(err)
+            }
+        };
+        //.map(|_| MessageResponse::new(receiver))
     }
 
     pub(crate) fn shutdown(&self) -> Result<MessageResponse, SendError<ChanneledMessage>> {
@@ -50,10 +59,13 @@ impl MessageExecutor {
                         let _ = channeled_message.send_response(MessageStatus::StoreDone);
                     }
                     Message::ShutDown => {
+                        println!("shutting down ...");
+
                         warn!("shutting down MessageExecutor, received shutdown message");
                         let _ = channeled_message.send_response(MessageStatus::ShutdownDone);
                         drop(receiver);
 
+                        println!("dropped receiver ..");
                         return;
                     }
                     //TODO: Handle
