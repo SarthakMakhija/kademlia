@@ -48,6 +48,8 @@ impl MessageExecutor {
                     }
                     Message::ShutDown => {
                         let _ = channeled_message.send_response(MessageStatus::ShutdownDone);
+                        drop(receiver);
+
                         return;
                     }
                     //TODO: Handle
