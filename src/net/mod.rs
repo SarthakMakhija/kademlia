@@ -1,12 +1,13 @@
 use std::fmt::{Display, Formatter};
 use std::io::Error;
 
-use crate::message::Message;
 use crate::net::connection::AsyncTcpConnection;
 use crate::net::endpoint::Endpoint;
+use crate::net::message::Message;
 
 pub(crate) mod connection;
 pub(crate) mod endpoint;
+pub(crate) mod message;
 pub(crate) mod node;
 
 #[derive(Debug)]
@@ -54,8 +55,8 @@ mod tests {
     use tokio::net::TcpListener;
 
     use crate::id::Id;
-    use crate::message::Message;
     use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::AsyncNetwork;
 

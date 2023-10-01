@@ -96,8 +96,8 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use crate::id::{Id, EXPECTED_ID_LENGTH_IN_BYTES};
-    use crate::message::Message;
     use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
     use crate::net::node::{Node, NodeId};
 
     #[test]

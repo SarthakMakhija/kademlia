@@ -1,6 +1,6 @@
+use crate::net::message::Message;
 use std::sync::Arc;
 
-use crate::message::Message;
 use crate::store::{Key, Store};
 
 pub(crate) trait MessageAction {
@@ -40,8 +40,8 @@ mod tests {
     use std::sync::Arc;
 
     use crate::executor::message_action::{MessageAction, StoreMessageAction};
-    use crate::message::Message;
     use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::store::{InMemoryStore, Store};
 

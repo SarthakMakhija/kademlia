@@ -1,6 +1,5 @@
+use crate::net::message::Message;
 use std::sync::mpsc::{Receiver, RecvError, SendError, Sender};
-
-use crate::message::Message;
 
 pub(crate) struct ChanneledMessage {
     pub(crate) message: Message,
@@ -58,7 +57,7 @@ mod channeled_message_tests {
     use std::sync::mpsc;
 
     use crate::executor::response::{ChanneledMessage, MessageStatus};
-    use crate::message::Message;
+    use crate::net::message::Message;
 
     #[test]
     fn send_response() {

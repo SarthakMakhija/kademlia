@@ -6,7 +6,7 @@ use log::{error, info, warn};
 
 use crate::executor::message_action::{MessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
-use crate::message::Message;
+use crate::net::message::Message;
 use crate::store::Store;
 
 mod message_action;
@@ -73,8 +73,8 @@ mod tests {
     use std::sync::Arc;
 
     use crate::executor::MessageExecutor;
-    use crate::message::Message;
     use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::store::{InMemoryStore, Store};
 
