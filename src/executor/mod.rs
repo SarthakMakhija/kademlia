@@ -29,18 +29,9 @@ impl MessageExecutor {
         message: Message,
     ) -> Result<MessageResponse, SendError<ChanneledMessage>> {
         let (sender, receiver) = mpsc::channel();
-        let result = self.sender.send(ChanneledMessage::new(message, sender));
-        return match result {
-            Ok(r) => {
-                println!("ok in sending, ");
-                Ok(MessageResponse::new(receiver))
-            }
-            Err(err) => {
-                println!("received send error ..");
-                Err(err)
-            }
-        };
-        //.map(|_| MessageResponse::new(receiver))
+        self.sender
+            .send(ChanneledMessage::new(message, sender))
+            .map(|_| MessageResponse::new(receiver))
     }
 
     pub(crate) fn shutdown(&self) -> Result<MessageResponse, SendError<ChanneledMessage>> {
@@ -59,13 +50,10 @@ impl MessageExecutor {
                         let _ = channeled_message.send_response(MessageStatus::StoreDone);
                     }
                     Message::ShutDown => {
-                        println!("shutting down ...");
-
                         drop(receiver);
                         warn!("shutting down MessageExecutor, received shutdown message");
-                        let _ = channeled_message.send_response(MessageStatus::ShutdownDone);
 
-                        println!("dropped receiver ..");
+                        let _ = channeled_message.send_response(MessageStatus::ShutdownDone);
                         return;
                     }
                     //TODO: Handle
@@ -83,8 +71,6 @@ impl MessageExecutor {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::thread;
-    use std::time::Duration;
 
     use crate::executor::MessageExecutor;
     use crate::message::Message;
