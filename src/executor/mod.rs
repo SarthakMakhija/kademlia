@@ -83,6 +83,8 @@ impl MessageExecutor {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
 
     use crate::executor::MessageExecutor;
     use crate::message::Message;
@@ -163,6 +165,7 @@ mod tests {
         let message_response_result = message_response.wait_until_response_is_received();
         assert!(message_response_result.is_ok());
 
+        thread::sleep(Duration::from_millis(10));
         let submit_result = executor.submit(Message::store_type(
             "kademlia".as_bytes().to_vec(),
             "distributed hash table".as_bytes().to_vec(),
