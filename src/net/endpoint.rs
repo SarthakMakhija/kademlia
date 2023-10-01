@@ -1,6 +1,9 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+use serde::Deserialize;
+use serde::Serialize;
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub(crate) struct Endpoint {
     host: String,
     port: u16,
@@ -14,10 +17,7 @@ impl Display for Endpoint {
 
 impl Endpoint {
     pub(crate) fn new(host: String, port: u16) -> Self {
-        return Endpoint {
-            host,
-            port
-        }
+        return Endpoint { host, port };
     }
 
     pub(crate) fn address(&self) -> String {

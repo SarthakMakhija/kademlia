@@ -40,7 +40,7 @@ impl StoredValue {
     }
 }
 
-pub(crate) trait Store {
+pub(crate) trait Store: Send + Sync {
     fn put_or_update(&self, key: Key, value: Vec<u8>);
     fn delete(&self, key: &Vec<u8>);
     fn get(&self, key: &Vec<u8>) -> Option<Vec<u8>>;
@@ -51,7 +51,7 @@ pub(crate) struct InMemoryStore {
 }
 
 impl InMemoryStore {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         InMemoryStore {
             value_by_key: RefCell::new(HashMap::new()),
         }
@@ -76,6 +76,9 @@ impl Store for InMemoryStore {
             .map(|stored_value| stored_value.clone_value())
     }
 }
+
+unsafe impl Send for InMemoryStore {}
+unsafe impl Sync for InMemoryStore {}
 
 #[cfg(test)]
 mod tests {

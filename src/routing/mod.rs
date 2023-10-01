@@ -10,14 +10,14 @@ pub(crate) struct Table {
 }
 
 impl Table {
-    fn new(node_id: NodeId) -> Self {
+    pub(crate) fn new(node_id: NodeId) -> Self {
         let mut buckets = Vec::with_capacity(node_id.id_length_in_bits);
         (0..node_id.id_length_in_bits).for_each(|_| buckets.push(Vec::new()));
 
         Table { buckets, node_id }
     }
 
-    fn add(&mut self, node: Node) -> bool {
+    pub(crate) fn add(&mut self, node: Node) -> bool {
         let (bucket_index, contains) = self.contains(&node);
         if !contains {
             self.buckets[bucket_index].push(node);

@@ -51,10 +51,13 @@ impl AsyncNetwork {
 
 #[cfg(test)]
 mod tests {
+    use tokio::net::TcpListener;
+
+    use crate::id::Id;
     use crate::message::Message;
     use crate::net::endpoint::Endpoint;
+    use crate::net::node::Node;
     use crate::net::AsyncNetwork;
-    use tokio::net::TcpListener;
 
     #[tokio::test]
     async fn send_message_successfully() {
@@ -65,6 +68,10 @@ mod tests {
             Message::store_type(
                 "kademlia".as_bytes().to_vec(),
                 "distributed hash table".as_bytes().to_vec(),
+                Node::new_with_id(
+                    Endpoint::new("localhost".to_string(), 2389),
+                    Id::new(vec![10, 20]),
+                ),
             ),
             &Endpoint::new("localhost".to_string(), 8989),
         )
