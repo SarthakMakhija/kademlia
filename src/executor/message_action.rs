@@ -7,17 +7,17 @@ pub(crate) trait MessageAction {
     fn act_on(&self, message: Message);
 }
 
-pub(crate) struct StoreMessageAction<'a> {
-    store: &'a Arc<dyn Store>,
+pub(crate) struct StoreMessageAction<'action> {
+    store: &'action Arc<dyn Store>,
 }
 
-impl<'a> StoreMessageAction<'a> {
-    pub(crate) fn new(store: &'a Arc<dyn Store>) -> Self {
+impl<'action> StoreMessageAction<'action> {
+    pub(crate) fn new(store: &'action Arc<dyn Store>) -> Self {
         StoreMessageAction { store }
     }
 }
 
-impl<'a> MessageAction for StoreMessageAction<'a> {
+impl<'action> MessageAction for StoreMessageAction<'action> {
     fn act_on(&self, message: Message) {
         match message {
             Message::Store {
