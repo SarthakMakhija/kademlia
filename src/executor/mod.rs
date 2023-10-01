@@ -61,9 +61,9 @@ impl MessageExecutor {
                     Message::ShutDown => {
                         println!("shutting down ...");
 
+                        drop(receiver);
                         warn!("shutting down MessageExecutor, received shutdown message");
                         let _ = channeled_message.send_response(MessageStatus::ShutdownDone);
-                        drop(receiver);
 
                         println!("dropped receiver ..");
                         return;
@@ -165,7 +165,6 @@ mod tests {
         let message_response_result = message_response.wait_until_response_is_received();
         assert!(message_response_result.is_ok());
 
-        thread::sleep(Duration::from_millis(10));
         let submit_result = executor.submit(Message::store_type(
             "kademlia".as_bytes().to_vec(),
             "distributed hash table".as_bytes().to_vec(),
