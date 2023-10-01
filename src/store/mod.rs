@@ -1,3 +1,4 @@
+use log::debug;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -60,6 +61,10 @@ impl InMemoryStore {
 
 impl Store for InMemoryStore {
     fn put_or_update(&self, key: Key, value: Vec<u8>) {
+        debug!(
+            "storing the key/value pair in InMemoryStore. The key id is {:?}",
+            key.id
+        );
         self.value_by_key
             .borrow_mut()
             .insert(key.key, StoredValue::new(key.id, value));
