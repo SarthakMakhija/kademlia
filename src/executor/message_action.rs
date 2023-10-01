@@ -26,6 +26,7 @@ impl<'a> MessageAction for StoreMessageAction<'a> {
                 value,
                 source: _source,
             } => {
+                //TODO: add the node to routing table
                 self.store
                     .put_or_update(Key::new_with_id(key, key_id), value);
             }

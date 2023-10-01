@@ -50,9 +50,11 @@ impl MessageExecutor {
                         let _ = channeled_message.send_response(MessageStatus::ShutdownDone);
                         return;
                     }
+                    //TODO: Handle
                     _ => {}
                 },
                 Err(err) => {
+                    //TODO: support for logging
                     println!("received an err {:?}", err);
                     return;
                 }
