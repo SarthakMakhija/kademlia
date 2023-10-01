@@ -1,8 +1,10 @@
-use crate::executor::message_action::{MessageAction, StoreMessageAction};
 use std::sync::mpsc::{Receiver, SendError, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
 
+use log::{error, info, warn};
+
+use crate::executor::message_action::{MessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::message::Message;
 use crate::store::Store;
@@ -41,12 +43,14 @@ impl MessageExecutor {
             match receiver.recv() {
                 Ok(channeled_message) => match channeled_message.message {
                     Message::Store { .. } => {
+                        info!("working on store message in MessageExecutor");
                         let action = StoreMessageAction::new(&store);
                         action.act_on(channeled_message.message.clone());
 
                         let _ = channeled_message.send_response(MessageStatus::StoreDone);
                     }
                     Message::ShutDown => {
+                        warn!("shutting down MessageExecutor, received shutdown message");
                         let _ = channeled_message.send_response(MessageStatus::ShutdownDone);
                         drop(receiver);
 
@@ -56,8 +60,7 @@ impl MessageExecutor {
                     _ => {}
                 },
                 Err(err) => {
-                    //TODO: support for logging
-                    println!("received an err {:?}", err);
+                    error!("error in receiving from the receiver in MessageExecutor. Looks like the sender was dropped. Err: {:?}", err);
                     return;
                 }
             }
