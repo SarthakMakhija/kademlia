@@ -1,3 +1,4 @@
+use log::debug;
 use std::io::Error;
 
 use tokio::io;
@@ -12,6 +13,7 @@ pub(crate) struct AsyncTcpConnection {
 
 impl AsyncTcpConnection {
     pub(crate) async fn establish_with(endpoint: &Endpoint) -> Result<AsyncTcpConnection, Error> {
+        debug!("establishing connection with {}", endpoint.address());
         TcpStream::connect(endpoint.address())
             .await
             .map(|tcp_stream| AsyncTcpConnection { tcp_stream })

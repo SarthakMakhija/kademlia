@@ -1,6 +1,7 @@
 use crate::id::Id;
 use crate::net::node::{Node, NodeId};
 use crate::routing::neighbors::ClosestNeighbors;
+use log::info;
 
 mod neighbors;
 
@@ -20,6 +21,10 @@ impl Table {
     pub(crate) fn add(&mut self, node: Node) -> bool {
         let (bucket_index, contains) = self.contains(&node);
         if !contains {
+            info!(
+                "adding node with id {:?} to the bucket with index {}",
+                node.id, bucket_index
+            );
             self.buckets[bucket_index].push(node);
             return true;
         }
@@ -34,6 +39,10 @@ impl Table {
                 .position(|existing_node| existing_node.eq(node));
 
             if let Some(index) = node_index {
+                info!(
+                    "removing node with id {:?} from the bucket with index {}",
+                    node.id, bucket_index
+                );
                 self.buckets[bucket_index].remove(index);
                 return true;
             }
@@ -61,6 +70,11 @@ impl Table {
                 }
             }
         }
+        info!(
+            "returning a total of {} closest neighbors for the id {:?}",
+            closest_neighbors.node_ids.len(),
+            id
+        );
         closest_neighbors.sort_ascending_by_distance();
         return closest_neighbors;
     }
