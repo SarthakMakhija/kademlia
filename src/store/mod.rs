@@ -1,5 +1,7 @@
-use crate::id::Id;
+use std::cell::RefCell;
 use std::collections::HashMap;
+
+use crate::id::Id;
 
 pub(crate) type KeyId = Id;
 
@@ -33,43 +35,45 @@ impl StoredValue {
         StoredValue { key_id, value }
     }
 
-    pub(crate) fn value(&self) -> &Vec<u8> {
-        &self.value
+    pub(crate) fn clone_value(&self) -> Vec<u8> {
+        self.value.clone()
     }
 }
 
 pub(crate) trait Store {
-    fn put_or_update(&mut self, key: Key, value: Vec<u8>);
-    fn get(&self, key: &Vec<u8>) -> Option<&Vec<u8>>;
-    fn delete(&mut self, key: &Vec<u8>);
+    fn put_or_update(&self, key: Key, value: Vec<u8>);
+    fn delete(&self, key: &Vec<u8>);
+    fn get(&self, key: &Vec<u8>) -> Option<Vec<u8>>;
 }
 
 pub(crate) struct InMemoryStore {
-    value_by_key: HashMap<Vec<u8>, StoredValue>,
+    value_by_key: RefCell<HashMap<Vec<u8>, StoredValue>>,
 }
 
 impl InMemoryStore {
     fn new() -> Self {
         InMemoryStore {
-            value_by_key: HashMap::new(),
+            value_by_key: RefCell::new(HashMap::new()),
         }
     }
 }
 
 impl Store for InMemoryStore {
-    fn put_or_update(&mut self, key: Key, value: Vec<u8>) {
+    fn put_or_update(&self, key: Key, value: Vec<u8>) {
         self.value_by_key
+            .borrow_mut()
             .insert(key.key, StoredValue::new(key.id, value));
     }
 
-    fn get(&self, key: &Vec<u8>) -> Option<&Vec<u8>> {
-        self.value_by_key
-            .get(key)
-            .map(|stored_value| stored_value.value())
+    fn delete(&self, key: &Vec<u8>) {
+        self.value_by_key.borrow_mut().remove_entry(key);
     }
 
-    fn delete(&mut self, key: &Vec<u8>) {
-        self.value_by_key.remove_entry(key);
+    fn get(&self, key: &Vec<u8>) -> Option<Vec<u8>> {
+        let value_by_key = self.value_by_key.borrow();
+        value_by_key
+            .get(key)
+            .map(|stored_value| stored_value.clone_value())
     }
 }
 
@@ -88,7 +92,7 @@ mod tests {
 
     #[test]
     fn get_the_value_for_the_existing_key() {
-        let mut store = InMemoryStore::new();
+        let store = InMemoryStore::new();
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
@@ -107,12 +111,12 @@ mod tests {
         );
 
         let expected_value = "distributed hash table".as_bytes().to_vec();
-        assert_eq!(&expected_value, stored_value.unwrap())
+        assert_eq!(expected_value, stored_value.unwrap())
     }
 
     #[test]
     fn update_the_value_for_an_existing_key() {
-        let mut store = InMemoryStore::new();
+        let store = InMemoryStore::new();
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
@@ -134,7 +138,7 @@ mod tests {
         );
 
         let expected_value = "hash table".as_bytes().to_vec();
-        assert_eq!(&expected_value, stored_value.unwrap())
+        assert_eq!(expected_value, stored_value.unwrap())
     }
 
     #[test]
@@ -156,7 +160,7 @@ mod tests {
 
     #[test]
     fn delete_the_value_for_an_existing_key() {
-        let mut store = InMemoryStore::new();
+        let store = InMemoryStore::new();
         let key = "kademlia".as_bytes().to_vec();
         let value = "distributed hash table".as_bytes().to_vec();
 
