@@ -1,12 +1,13 @@
+use crate::executor::message_action::{MessageAction, StoreMessageAction};
 use std::sync::mpsc::{Receiver, SendError, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
 
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::message::Message;
+use crate::store::Store;
 
-use crate::store::{Key, Store};
-
+mod message_action;
 mod response;
 
 pub(crate) struct MessageExecutor {
@@ -38,14 +39,11 @@ impl MessageExecutor {
     fn start(&self, receiver: Receiver<ChanneledMessage>, store: Arc<dyn Store>) {
         thread::spawn(move || loop {
             match receiver.recv() {
-                Ok(channeled_message) => match channeled_message.message.clone() {
-                    Message::Store {
-                        key,
-                        key_id,
-                        value,
-                        source: _source,
-                    } => {
-                        store.put_or_update(Key::new_with_id(key, key_id), value);
+                Ok(channeled_message) => match channeled_message.message {
+                    Message::Store { .. } => {
+                        let action = StoreMessageAction::new(&store);
+                        action.act_on(channeled_message.message.clone());
+
                         let _ = channeled_message.send_response(MessageStatus::StoreDone);
                     }
                     Message::ShutDown => {
