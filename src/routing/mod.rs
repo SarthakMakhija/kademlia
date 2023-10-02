@@ -1,8 +1,10 @@
+use std::cell::RefCell;
+
+use log::info;
+
 use crate::id::Id;
 use crate::net::node::{Node, NodeId};
 use crate::routing::neighbors::ClosestNeighbors;
-use log::info;
-use std::cell::RefCell;
 
 mod neighbors;
 
@@ -55,7 +57,7 @@ impl Table {
         return false;
     }
 
-    fn contains(&self, node: &Node) -> (usize, bool) {
+    pub(crate) fn contains(&self, node: &Node) -> (usize, bool) {
         let bucket_index = self.bucket_index(&node.id);
         let nodes = &self.buckets.borrow()[bucket_index];
 
@@ -111,6 +113,9 @@ impl Table {
         bucket_index
     }
 }
+
+unsafe impl Send for Table {}
+unsafe impl Sync for Table {}
 
 #[cfg(test)]
 mod tests {

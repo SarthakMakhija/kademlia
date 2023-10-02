@@ -7,6 +7,7 @@ use log::{error, info, warn};
 use crate::executor::message_action::{MessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::net::message::Message;
+use crate::routing::Table;
 use crate::store::Store;
 
 mod message_action;
@@ -17,10 +18,10 @@ pub(crate) struct MessageExecutor {
 }
 
 impl MessageExecutor {
-    pub(crate) fn new(store: Arc<dyn Store>) -> Self {
+    pub(crate) fn new(store: Arc<dyn Store>, routing_table: Arc<Table>) -> Self {
         let (sender, receiver) = mpsc::channel();
         let executor = MessageExecutor { sender };
-        executor.start(receiver, store);
+        executor.start(receiver, store, routing_table);
         executor
     }
 
@@ -38,13 +39,18 @@ impl MessageExecutor {
         self.submit(Message::shutdown_type())
     }
 
-    fn start(&self, receiver: Receiver<ChanneledMessage>, store: Arc<dyn Store>) {
+    fn start(
+        &self,
+        receiver: Receiver<ChanneledMessage>,
+        store: Arc<dyn Store>,
+        routing_table: Arc<Table>,
+    ) {
         thread::spawn(move || loop {
             match receiver.recv() {
                 Ok(channeled_message) => match channeled_message.message {
                     Message::Store { .. } => {
                         info!("working on store message in MessageExecutor");
-                        let action = StoreMessageAction::new(&store);
+                        let action = StoreMessageAction::new(&store, &routing_table);
                         action.act_on(channeled_message.message.clone());
 
                         let _ = channeled_message.send_response(MessageStatus::StoreDone);
@@ -73,15 +79,18 @@ mod tests {
     use std::sync::Arc;
 
     use crate::executor::MessageExecutor;
+    use crate::id::Id;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
+    use crate::routing::Table;
     use crate::store::{InMemoryStore, Store};
 
     #[test]
     fn submit_store_message_successfully() {
         let store = Arc::new(InMemoryStore::new());
-        let executor = MessageExecutor::new(store.clone());
+        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+        let executor = MessageExecutor::new(store.clone(), routing_table);
 
         let submit_result = executor.submit(Message::store_type(
             "kademlia".as_bytes().to_vec(),
@@ -94,7 +103,8 @@ mod tests {
     #[test]
     fn submit_store_message_with_successful_message_store() {
         let store = Arc::new(InMemoryStore::new());
-        let executor = MessageExecutor::new(store.clone());
+        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+        let executor = MessageExecutor::new(store.clone(), routing_table);
 
         let submit_result = executor.submit(Message::store_type(
             "kademlia".as_bytes().to_vec(),
@@ -114,7 +124,8 @@ mod tests {
     #[test]
     fn submit_store_message_with_successful_value_in_store() {
         let store = Arc::new(InMemoryStore::new());
-        let executor = MessageExecutor::new(store.clone());
+        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+        let executor = MessageExecutor::new(store.clone(), routing_table);
 
         let submit_result = executor.submit(Message::store_type(
             "kademlia".as_bytes().to_vec(),
@@ -140,9 +151,35 @@ mod tests {
     }
 
     #[test]
+    fn submit_store_message_with_addition_of_node_in_routing_table() {
+        let store = Arc::new(InMemoryStore::new());
+        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+        let executor = MessageExecutor::new(store, routing_table.clone());
+
+        let submit_result = executor.submit(Message::store_type(
+            "kademlia".as_bytes().to_vec(),
+            "distributed hash table".as_bytes().to_vec(),
+            Node::new(Endpoint::new("localhost".to_string(), 1909)),
+        ));
+        assert!(submit_result.is_ok());
+
+        let message_response = submit_result.unwrap();
+        let message_response_result = message_response.wait_until_response_is_received();
+        assert!(message_response_result.is_ok());
+
+        let message_status = message_response_result.unwrap();
+        assert!(message_status.is_store_done());
+
+        let node = &Node::new(Endpoint::new("localhost".to_string(), 1909));
+        let (_, contains) = routing_table.contains(node);
+        assert!(contains);
+    }
+
+    #[test]
     fn submit_a_message_after_shutdown() {
         let store = Arc::new(InMemoryStore::new());
-        let executor = MessageExecutor::new(store.clone());
+        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+        let executor = MessageExecutor::new(store.clone(), routing_table);
 
         let submit_result = executor.shutdown();
         assert!(submit_result.is_ok());
