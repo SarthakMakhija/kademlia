@@ -1,8 +1,10 @@
-use std::sync::mpsc::{Receiver, SendError, Sender};
-use std::sync::{mpsc, Arc};
-use std::thread;
+use std::sync::Arc;
 
 use log::{error, info, warn};
+
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::executor::message_action::{MessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
@@ -19,35 +21,39 @@ pub(crate) struct MessageExecutor {
 
 impl MessageExecutor {
     pub(crate) fn new(store: Arc<dyn Store>, routing_table: Arc<Table>) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        //TODO: make 100 configurable
+        let (sender, receiver) = mpsc::channel(100);
+
         let executor = MessageExecutor { sender };
         executor.start(receiver, store, routing_table);
+
         executor
     }
 
-    pub(crate) fn submit(
+    pub(crate) async fn submit(
         &self,
         message: Message,
     ) -> Result<MessageResponse, SendError<ChanneledMessage>> {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = oneshot::channel();
         self.sender
             .send(ChanneledMessage::new(message, sender))
+            .await
             .map(|_| MessageResponse::new(receiver))
     }
 
-    pub(crate) fn shutdown(&self) -> Result<MessageResponse, SendError<ChanneledMessage>> {
-        self.submit(Message::shutdown_type())
+    pub(crate) async fn shutdown(&self) -> Result<MessageResponse, SendError<ChanneledMessage>> {
+        self.submit(Message::shutdown_type()).await
     }
 
     fn start(
         &self,
-        receiver: Receiver<ChanneledMessage>,
+        mut receiver: Receiver<ChanneledMessage>,
         store: Arc<dyn Store>,
         routing_table: Arc<Table>,
     ) {
-        thread::spawn(move || loop {
-            match receiver.recv() {
-                Ok(channeled_message) => match channeled_message.message {
+        tokio::spawn(async move {
+            match receiver.recv().await {
+                Some(channeled_message) => match channeled_message.message {
                     Message::Store { .. } => {
                         info!("working on store message in MessageExecutor");
                         let action = StoreMessageAction::new(&store, &routing_table);
@@ -65,8 +71,8 @@ impl MessageExecutor {
                     //TODO: Handle
                     _ => {}
                 },
-                Err(err) => {
-                    error!("error in receiving from the receiver in MessageExecutor. Looks like the sender was dropped. Err: {:?}", err);
+                None => {
+                    error!("did not receive any more message in MessageExecutor. Looks like the sender was dropped");
                     return;
                 }
             }
@@ -86,56 +92,62 @@ mod tests {
     use crate::routing::Table;
     use crate::store::{InMemoryStore, Store};
 
-    #[test]
-    fn submit_store_message_successfully() {
+    #[tokio::test]
+    async fn submit_store_message_successfully() {
         let store = Arc::new(InMemoryStore::new());
         let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
-        let executor = MessageExecutor::new(store.clone(), routing_table);
 
-        let submit_result = executor.submit(Message::store_type(
-            "kademlia".as_bytes().to_vec(),
-            "distributed hash table".as_bytes().to_vec(),
-            Node::new(Endpoint::new("localhost".to_string(), 1909)),
-        ));
+        let executor = MessageExecutor::new(store.clone(), routing_table);
+        let submit_result = executor
+            .submit(Message::store_type(
+                "kademlia".as_bytes().to_vec(),
+                "distributed hash table".as_bytes().to_vec(),
+                Node::new(Endpoint::new("localhost".to_string(), 1909)),
+            ))
+            .await;
         assert!(submit_result.is_ok());
     }
 
-    #[test]
-    fn submit_store_message_with_successful_message_store() {
+    #[tokio::test]
+    async fn submit_store_message_with_successful_message_store() {
         let store = Arc::new(InMemoryStore::new());
         let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
         let executor = MessageExecutor::new(store.clone(), routing_table);
 
-        let submit_result = executor.submit(Message::store_type(
-            "kademlia".as_bytes().to_vec(),
-            "distributed hash table".as_bytes().to_vec(),
-            Node::new(Endpoint::new("localhost".to_string(), 1909)),
-        ));
+        let submit_result = executor
+            .submit(Message::store_type(
+                "kademlia".as_bytes().to_vec(),
+                "distributed hash table".as_bytes().to_vec(),
+                Node::new(Endpoint::new("localhost".to_string(), 1909)),
+            ))
+            .await;
         assert!(submit_result.is_ok());
 
         let message_response = submit_result.unwrap();
-        let message_response_result = message_response.wait_until_response_is_received();
+        let message_response_result = message_response.wait_until_response_is_received().await;
         assert!(message_response_result.is_ok());
 
         let message_status = message_response_result.unwrap();
         assert!(message_status.is_store_done());
     }
 
-    #[test]
-    fn submit_store_message_with_successful_value_in_store() {
+    #[tokio::test]
+    async fn submit_store_message_with_successful_value_in_store() {
         let store = Arc::new(InMemoryStore::new());
         let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
         let executor = MessageExecutor::new(store.clone(), routing_table);
 
-        let submit_result = executor.submit(Message::store_type(
-            "kademlia".as_bytes().to_vec(),
-            "distributed hash table".as_bytes().to_vec(),
-            Node::new(Endpoint::new("localhost".to_string(), 1909)),
-        ));
+        let submit_result = executor
+            .submit(Message::store_type(
+                "kademlia".as_bytes().to_vec(),
+                "distributed hash table".as_bytes().to_vec(),
+                Node::new(Endpoint::new("localhost".to_string(), 1909)),
+            ))
+            .await;
         assert!(submit_result.is_ok());
 
         let message_response = submit_result.unwrap();
-        let message_response_result = message_response.wait_until_response_is_received();
+        let message_response_result = message_response.wait_until_response_is_received().await;
         assert!(message_response_result.is_ok());
 
         let message_status = message_response_result.unwrap();
@@ -150,21 +162,23 @@ mod tests {
         );
     }
 
-    #[test]
-    fn submit_store_message_with_addition_of_node_in_routing_table() {
+    #[tokio::test]
+    async fn submit_store_message_with_addition_of_node_in_routing_table() {
         let store = Arc::new(InMemoryStore::new());
         let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
         let executor = MessageExecutor::new(store, routing_table.clone());
 
-        let submit_result = executor.submit(Message::store_type(
-            "kademlia".as_bytes().to_vec(),
-            "distributed hash table".as_bytes().to_vec(),
-            Node::new(Endpoint::new("localhost".to_string(), 1909)),
-        ));
+        let submit_result = executor
+            .submit(Message::store_type(
+                "kademlia".as_bytes().to_vec(),
+                "distributed hash table".as_bytes().to_vec(),
+                Node::new(Endpoint::new("localhost".to_string(), 1909)),
+            ))
+            .await;
         assert!(submit_result.is_ok());
 
         let message_response = submit_result.unwrap();
-        let message_response_result = message_response.wait_until_response_is_received();
+        let message_response_result = message_response.wait_until_response_is_received().await;
         assert!(message_response_result.is_ok());
 
         let message_status = message_response_result.unwrap();
@@ -175,24 +189,26 @@ mod tests {
         assert!(contains);
     }
 
-    #[test]
-    fn submit_a_message_after_shutdown() {
+    #[tokio::test]
+    async fn submit_a_message_after_shutdown() {
         let store = Arc::new(InMemoryStore::new());
         let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
         let executor = MessageExecutor::new(store.clone(), routing_table);
 
-        let submit_result = executor.shutdown();
+        let submit_result = executor.shutdown().await;
         assert!(submit_result.is_ok());
 
         let message_response = submit_result.unwrap();
-        let message_response_result = message_response.wait_until_response_is_received();
+        let message_response_result = message_response.wait_until_response_is_received().await;
         assert!(message_response_result.is_ok());
 
-        let submit_result = executor.submit(Message::store_type(
-            "kademlia".as_bytes().to_vec(),
-            "distributed hash table".as_bytes().to_vec(),
-            Node::new(Endpoint::new("localhost".to_string(), 1909)),
-        ));
+        let submit_result = executor
+            .submit(Message::store_type(
+                "kademlia".as_bytes().to_vec(),
+                "distributed hash table".as_bytes().to_vec(),
+                Node::new(Endpoint::new("localhost".to_string(), 1909)),
+            ))
+            .await;
         assert!(submit_result.is_err());
     }
 }

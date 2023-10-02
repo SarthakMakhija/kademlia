@@ -11,7 +11,7 @@ log = "0.4.20"
 num-bigint = "0.4.4"
 ripemd = "0.1.3"
 serde = { version = "1.0.188", features = ["derive"] }
-tokio = { version = "1.32.0", features = ["rt", "net", "io-util", "macros", "rt-multi-thread"] }
+tokio = { version = "1.32.0", features = ["rt", "net", "io-util", "macros", "rt-multi-thread", "sync"] }
 
 [dev-dependencies]
 hex-literal = "0.2.2"

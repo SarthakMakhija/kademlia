@@ -1,5 +1,7 @@
+use tokio::sync::oneshot::error::RecvError;
+use tokio::sync::oneshot::{Receiver, Sender};
+
 use crate::net::message::Message;
-use std::sync::mpsc::{Receiver, RecvError, SendError, Sender};
 
 pub(crate) struct ChanneledMessage {
     pub(crate) message: Message,
@@ -14,10 +16,7 @@ impl ChanneledMessage {
         }
     }
 
-    pub(crate) fn send_response(
-        &self,
-        status: MessageStatus,
-    ) -> Result<(), SendError<MessageStatus>> {
+    pub(crate) fn send_response(self, status: MessageStatus) -> Result<(), MessageStatus> {
         self.response_sender.send(status)
     }
 }
@@ -47,33 +46,33 @@ impl MessageResponse {
         }
     }
 
-    pub(crate) fn wait_until_response_is_received(&self) -> Result<MessageStatus, RecvError> {
-        self.receiver.recv()
+    pub(crate) async fn wait_until_response_is_received(self) -> Result<MessageStatus, RecvError> {
+        self.receiver.await
     }
 }
 
 #[cfg(test)]
 mod channeled_message_tests {
-    use std::sync::mpsc;
+    use tokio::sync::oneshot;
 
     use crate::executor::response::{ChanneledMessage, MessageStatus};
     use crate::net::message::Message;
 
-    #[test]
-    fn send_response() {
-        let (sender, receiver) = mpsc::channel();
+    #[tokio::test]
+    async fn send_response() {
+        let (sender, receiver) = oneshot::channel();
         let channeled_message = ChanneledMessage::new(Message::shutdown_type(), sender);
 
         let send_result = channeled_message.send_response(MessageStatus::StoreDone);
         assert!(send_result.is_ok());
 
-        let message_status = receiver.recv().unwrap();
+        let message_status = receiver.await.unwrap();
         assert!(message_status.is_store_done());
     }
 
     #[test]
     fn send_response_with_failure() {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = oneshot::channel();
         let channeled_message = ChanneledMessage::new(Message::shutdown_type(), sender);
 
         drop(receiver);
@@ -85,29 +84,29 @@ mod channeled_message_tests {
 
 #[cfg(test)]
 mod message_response_tests {
-    use std::sync::mpsc;
-    use std::thread;
+    use tokio::sync::oneshot;
 
     use crate::executor::response::{MessageResponse, MessageStatus};
 
-    #[test]
-    fn wait_until_the_message_response_is_received() {
-        let (sender, receiver) = mpsc::channel();
+    #[tokio::test]
+    async fn wait_until_the_message_response_is_received() {
+        let (sender, receiver) = oneshot::channel();
         let message_response = MessageResponse::new(receiver);
 
-        thread::scope(|scope| {
-            scope.spawn(move || {
-                let message_response_result = message_response.wait_until_response_is_received();
-                assert!(message_response_result.is_ok());
+        let handle = tokio::spawn(async move {
+            let message_response_result = message_response.wait_until_response_is_received().await;
+            assert!(message_response_result.is_ok());
 
-                let message_status = message_response_result.unwrap();
-                assert!(message_status.is_store_done());
-            });
-
-            scope.spawn(move || {
-                let message_status_send_result = sender.send(MessageStatus::StoreDone);
-                assert!(message_status_send_result.is_ok());
-            });
+            let message_status = message_response_result.unwrap();
+            assert!(message_status.is_store_done());
         });
+
+        let other_handle = tokio::spawn(async move {
+            let message_status_send_result = sender.send(MessageStatus::StoreDone);
+            assert!(message_status_send_result.is_ok());
+        });
+
+        handle.await.unwrap();
+        other_handle.await.unwrap();
     }
 }
