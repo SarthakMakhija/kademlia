@@ -2,11 +2,12 @@ use crate::id::Id;
 use crate::net::node::{Node, NodeId};
 use crate::routing::neighbors::ClosestNeighbors;
 use log::info;
+use std::cell::RefCell;
 
 mod neighbors;
 
 pub(crate) struct Table {
-    buckets: Vec<Vec<Node>>,
+    buckets: RefCell<Vec<Vec<Node>>>,
     node_id: NodeId,
 }
 
@@ -15,26 +16,29 @@ impl Table {
         let mut buckets = Vec::with_capacity(node_id.id_length_in_bits);
         (0..node_id.id_length_in_bits).for_each(|_| buckets.push(Vec::new()));
 
-        Table { buckets, node_id }
+        Table {
+            buckets: RefCell::new(buckets),
+            node_id,
+        }
     }
 
-    pub(crate) fn add(&mut self, node: Node) -> bool {
+    pub(crate) fn add(&self, node: Node) -> bool {
         let (bucket_index, contains) = self.contains(&node);
         if !contains {
             info!(
                 "adding node with id {:?} to the bucket with index {}",
                 node.id, bucket_index
             );
-            self.buckets[bucket_index].push(node);
+            self.buckets.borrow_mut()[bucket_index].push(node);
             return true;
         }
         return false;
     }
 
-    fn remove(&mut self, node: &Node) -> bool {
+    fn remove(&self, node: &Node) -> bool {
         let (bucket_index, contains) = self.contains(node);
         if contains {
-            let node_index = self.buckets[bucket_index]
+            let node_index = self.buckets.borrow_mut()[bucket_index]
                 .iter()
                 .position(|existing_node| existing_node.eq(node));
 
@@ -43,7 +47,7 @@ impl Table {
                     "removing node with id {:?} from the bucket with index {}",
                     node.id, bucket_index
                 );
-                self.buckets[bucket_index].remove(index);
+                self.buckets.borrow_mut()[bucket_index].remove(index);
                 return true;
             }
             return false;
@@ -51,9 +55,9 @@ impl Table {
         return false;
     }
 
-    fn contains(&mut self, node: &Node) -> (usize, bool) {
+    fn contains(&self, node: &Node) -> (usize, bool) {
         let bucket_index = self.bucket_index(&node.id);
-        let nodes = &self.buckets[bucket_index];
+        let nodes = &self.buckets.borrow()[bucket_index];
 
         (bucket_index, nodes.contains(node))
     }
@@ -63,8 +67,8 @@ impl Table {
         let mut closest_neighbors = ClosestNeighbors::new(number_of_neighbors, id.clone());
 
         for bucket_index in self.all_adjacent_bucket_indices(bucket_index) {
-            if !self.buckets[bucket_index].is_empty() {
-                let nodes = &self.buckets[bucket_index];
+            if !self.buckets.borrow()[bucket_index].is_empty() {
+                let nodes = &self.buckets.borrow()[bucket_index];
                 if !closest_neighbors.add_missing(nodes) {
                     break;
                 }
@@ -100,7 +104,7 @@ impl Table {
         return adjacent_indices;
     }
 
-    fn bucket_index(&mut self, node_id: &NodeId) -> usize {
+    fn bucket_index(&self, node_id: &NodeId) -> usize {
         let bucket_index = self.node_id.differing_bit_position(node_id);
         assert!(bucket_index < node_id.id_length_in_bits);
 
@@ -119,7 +123,7 @@ mod tests {
     fn add_a_node_to_routing_table() {
         let id: u16 = 255;
 
-        let mut routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))))
     }
 
@@ -127,7 +131,7 @@ mod tests {
     fn do_not_add_an_existing_node_to_routing_table() {
         let id: u16 = 255;
 
-        let mut routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
         assert_eq!(
             false,
@@ -139,7 +143,7 @@ mod tests {
     fn remove_an_existing_node() {
         let id: u16 = 255;
 
-        let mut routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
 
         let node = &Node::new(Endpoint::new("localhost".to_string(), 2379));
@@ -153,7 +157,7 @@ mod tests {
     #[test]
     fn do_not_remove_a_non_existing_node() {
         let id: u16 = 255;
-        let mut routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
 
         let node = &Node::new(Endpoint::new("localhost".to_string(), 1000));
         let deleted = routing_table.remove(node);
@@ -164,7 +168,7 @@ mod tests {
     fn contains_an_existing_node() {
         let id: u16 = 511;
 
-        let mut routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
 
         let node = &Node::new(Endpoint::new("localhost".to_string(), 2379));
@@ -175,7 +179,7 @@ mod tests {
     #[test]
     fn does_not_contain_a_node() {
         let id: u16 = 511;
-        let mut routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
 
         let node = &Node::new(Endpoint::new("unknown".to_string(), 1010));
         let (_, contains) = routing_table.contains(node);
@@ -184,7 +188,7 @@ mod tests {
 
     #[test]
     fn single_closest_neighbor_1() {
-        let mut routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
@@ -204,7 +208,7 @@ mod tests {
 
     #[test]
     fn single_closest_neighbor_2() {
-        let mut routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
@@ -224,7 +228,7 @@ mod tests {
 
     #[test]
     fn single_closest_neighbor_3() {
-        let mut routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
@@ -244,7 +248,7 @@ mod tests {
 
     #[test]
     fn single_closest_neighbor_4() {
-        let mut routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
+        let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
         assert!(routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
