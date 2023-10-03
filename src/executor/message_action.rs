@@ -55,7 +55,7 @@ impl<'action> PingMessageAction<'action> {
 impl<'action> MessageAction for PingMessageAction<'action> {
     fn act_on(&self, message: Message) {
         match message {
-            Message::Ping { from } => {
+            Message::SendPing { from } => {
                 let current_node = self.current_node.clone();
                 tokio::spawn(async move {
                     let _ =
@@ -166,7 +166,7 @@ mod ping_message_action_tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::PingReply { to } = message {
+            if let Message::SendPingReply { to } = message {
                 assert_eq!("localhost:7878", to.endpoint().address());
             }
         });

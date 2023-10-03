@@ -1,0 +1,19 @@
+1. Methods for clone and use those clone methods
+2. Add node to the routing table in store message - done
+7. send Ping from one node to other ++ handle ping on the receiving node - done
+8. send PingReply from the receiving node to the source node - done
+3. RequestWaitingList
+4. Go through Kademlia blog/paper once
+------
+0. See if there are gaps in what has been built (like LRU for nodes in a bucket)
+1. Iterate find
+2. Server
+3. Provide support for findValue in executor
+4. Add node as RPC (?)
+5. Remove node?
+6. Node health check
+8. Replication
+9. Documentation
+10. E2E
+11. Client
+12. Blog

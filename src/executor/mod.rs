@@ -66,8 +66,8 @@ impl MessageExecutor {
 
                         let _ = channeled_message.send_response(MessageStatus::StoreDone);
                     }
-                    Message::Ping { .. } => {
-                        info!("working on ping message in MessageExecutor");
+                    Message::SendPing { .. } => {
+                        info!("working on send ping message in MessageExecutor");
                         let action = PingMessageAction::new(&current_node);
                         action.act_on(channeled_message.message.clone());
 
@@ -275,7 +275,7 @@ mod tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::PingReply { to } = message {
+            if let Message::SendPingReply { to } = message {
                 assert_eq!("localhost:9090", to.endpoint().address());
             }
         });
