@@ -20,7 +20,7 @@ impl Source {
     }
 }
 
-const U32_SIZE: usize = size_of::<u32>();
+pub(crate) const U32_SIZE: usize = size_of::<u32>();
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum Message {
@@ -71,6 +71,13 @@ impl Message {
         bincode::deserialize(&bytes[U32_SIZE..])
     }
 
+    pub(crate) fn is_find_value_type(&self) -> bool {
+        if let Message::FindValue { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
     pub(crate) fn serialize(&self) -> bincode::Result<Vec<u8>> {
         let result = bincode::serialize(self);
         result.map(|mut bytes| {
@@ -87,13 +94,6 @@ impl Message {
 
     fn is_store_type(&self) -> bool {
         if let Message::Store { .. } = self {
-            return true;
-        }
-        return false;
-    }
-
-    fn is_find_value_type(&self) -> bool {
-        if let Message::FindValue { .. } = self {
             return true;
         }
         return false;
