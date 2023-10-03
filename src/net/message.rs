@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use bincode;
 use serde::Deserialize;
 use serde::Serialize;
@@ -17,6 +19,8 @@ impl Source {
         Node::new_with_id(self.node_endpoint, self.node_id)
     }
 }
+
+const U32_SIZE: usize = size_of::<u32>();
 
 #[derive(Serialize, Deserialize, Clone)]
 pub(crate) enum Message {
@@ -64,11 +68,21 @@ impl Message {
     }
 
     pub(crate) fn deserialize_from(bytes: &[u8]) -> bincode::Result<Message> {
-        bincode::deserialize(bytes)
+        bincode::deserialize(&bytes[U32_SIZE..])
     }
 
     pub(crate) fn serialize(&self) -> bincode::Result<Vec<u8>> {
-        bincode::serialize(self)
+        let result = bincode::serialize(self);
+        result.map(|mut bytes| {
+            let mut size: u32 = bytes.len() as u32;
+            let mut size = size.to_be_bytes().to_vec();
+
+            let mut serialized = Vec::new();
+            serialized.append(&mut size);
+            serialized.append(&mut bytes);
+
+            serialized
+        })
     }
 
     fn is_store_type(&self) -> bool {
