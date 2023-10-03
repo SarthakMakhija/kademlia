@@ -17,20 +17,19 @@ mod response;
 
 pub(crate) struct MessageExecutor {
     sender: Sender<ChanneledMessage>,
+    routing_table: Arc<Table>,
 }
 
 impl MessageExecutor {
-    pub(crate) fn new(
-        current_node: Node,
-        store: Arc<dyn Store>,
-        routing_table: Arc<Table>,
-    ) -> Self {
+    pub(crate) fn new(current_node: Node, store: Arc<dyn Store>) -> Self {
         //TODO: make 100 configurable
         let (sender, receiver) = mpsc::channel(100);
 
-        let executor = MessageExecutor { sender };
-        executor.start(current_node, receiver, store, routing_table);
-
+        let executor = MessageExecutor {
+            sender,
+            routing_table: Arc::new(Table::new(current_node.node_id())),
+        };
+        executor.start(current_node, receiver, store);
         executor
     }
 
@@ -54,8 +53,8 @@ impl MessageExecutor {
         current_node: Node,
         mut receiver: Receiver<ChanneledMessage>,
         store: Arc<dyn Store>,
-        routing_table: Arc<Table>,
     ) {
+        let routing_table = self.routing_table.clone();
         tokio::spawn(async move {
             match receiver.recv().await {
                 Some(channeled_message) => match channeled_message.message {
@@ -101,19 +100,16 @@ mod store_message_executor {
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
-    use crate::routing::Table;
     use crate::store::{InMemoryStore, Store};
 
     #[tokio::test]
     async fn submit_store_message_successfully() {
         let store = Arc::new(InMemoryStore::new());
-        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
-
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), routing_table);
+        let executor = MessageExecutor::new(node, store.clone());
         let submit_result = executor
             .submit(Message::store_type(
                 "kademlia".as_bytes().to_vec(),
@@ -127,13 +123,12 @@ mod store_message_executor {
     #[tokio::test]
     async fn submit_store_message_with_successful_message_store() {
         let store = Arc::new(InMemoryStore::new());
-        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
 
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), routing_table);
+        let executor = MessageExecutor::new(node, store.clone());
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -155,13 +150,11 @@ mod store_message_executor {
     #[tokio::test]
     async fn submit_store_message_with_successful_value_in_store() {
         let store = Arc::new(InMemoryStore::new());
-        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
-
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), routing_table);
+        let executor = MessageExecutor::new(node, store.clone());
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -191,13 +184,11 @@ mod store_message_executor {
     #[tokio::test]
     async fn submit_store_message_with_addition_of_node_in_routing_table() {
         let store = Arc::new(InMemoryStore::new());
-        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
-
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store, routing_table.clone());
+        let executor = MessageExecutor::new(node, store);
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -216,20 +207,18 @@ mod store_message_executor {
         assert!(message_status.is_store_done());
 
         let node = &Node::new(Endpoint::new("localhost".to_string(), 1909));
-        let (_, contains) = routing_table.contains(node);
+        let (_, contains) = executor.routing_table.contains(node);
         assert!(contains);
     }
 
     #[tokio::test]
     async fn submit_a_message_after_shutdown() {
         let store = Arc::new(InMemoryStore::new());
-        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
-
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), routing_table);
+        let executor = MessageExecutor::new(node, store.clone());
 
         let submit_result = executor.shutdown().await;
         assert!(submit_result.is_ok());
@@ -251,16 +240,16 @@ mod store_message_executor {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use tokio::net::TcpListener;
+
     use crate::executor::MessageExecutor;
-    use crate::id::Id;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
-    use crate::routing::Table;
     use crate::store::InMemoryStore;
-    use std::sync::Arc;
-    use tokio::net::TcpListener;
 
     #[tokio::test]
     async fn submit_ping_message_with_successful_reply() {
@@ -281,9 +270,8 @@ mod tests {
         });
 
         let store = Arc::new(InMemoryStore::new());
-        let routing_table = Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
         let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
-        let executor = MessageExecutor::new(node, store.clone(), routing_table);
+        let executor = MessageExecutor::new(node, store.clone());
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 7565));
         let submit_result = executor.submit(Message::ping_type(node_sending_ping)).await;

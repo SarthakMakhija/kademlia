@@ -23,6 +23,10 @@ impl Node {
         Node { id, endpoint }
     }
 
+    pub(crate) fn node_id(&self) -> NodeId {
+        self.id.clone()
+    }
+
     fn distance_from(&self, other: &Node) -> BigInt {
         self.id.distance_from(&other.id)
     }
