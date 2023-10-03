@@ -9,6 +9,7 @@ pub(crate) mod connection;
 pub(crate) mod endpoint;
 pub(crate) mod message;
 pub(crate) mod node;
+mod wait;
 
 #[derive(Debug)]
 pub(crate) enum NetworkErrorKind {

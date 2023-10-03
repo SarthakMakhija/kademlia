@@ -9,7 +9,7 @@ use crate::net::message::Message::{FindValue, Ping, SendPingReply};
 use crate::net::node::{Node, NodeId};
 use crate::store::KeyId;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) struct Source {
     node_endpoint: Endpoint,
     node_id: NodeId,
@@ -27,7 +27,7 @@ impl Source {
 
 pub(crate) const U32_SIZE: usize = size_of::<u32>();
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) enum Message {
     Store {
         key: Vec<u8>,
@@ -109,6 +109,13 @@ impl Message {
 
     pub(crate) fn is_ping_reply_type(&self) -> bool {
         if let SendPingReply { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
+    pub(crate) fn is_shutdown_type(&self) -> bool {
+        if let Message::ShutDown = self {
             return true;
         }
         return false;
