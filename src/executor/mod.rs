@@ -239,7 +239,7 @@ mod store_message_executor {
 }
 
 #[cfg(test)]
-mod tests {
+mod ping_message_executor {
     use std::sync::Arc;
 
     use tokio::net::TcpListener;
