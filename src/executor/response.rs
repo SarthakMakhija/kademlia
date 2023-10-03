@@ -23,6 +23,7 @@ impl ChanneledMessage {
 
 pub(crate) enum MessageStatus {
     StoreDone,
+    PingDone,
     ShutdownDone,
 }
 

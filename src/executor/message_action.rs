@@ -174,7 +174,7 @@ mod ping_message_action_tests {
         let current_node = Node::new(Endpoint::new("localhost".to_string(), 7878));
         let message_action = PingMessageAction::new(&current_node);
 
-        let node_sending_ping = (Node::new(Endpoint::new("localhost".to_string(), 8009)));
+        let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 8009));
         message_action.act_on(Message::ping_type(node_sending_ping));
 
         handle.await.unwrap();
