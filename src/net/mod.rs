@@ -42,10 +42,12 @@ impl Display for NetworkErrorKind {
 pub(crate) struct AsyncNetwork;
 
 impl AsyncNetwork {
-    async fn send(message: Message, endpoint: &Endpoint) -> Result<(), NetworkErrorKind> {
+    pub(crate) async fn send(
+        message: Message,
+        endpoint: &Endpoint,
+    ) -> Result<(), NetworkErrorKind> {
         let mut tcp_connection = AsyncTcpConnection::establish_with(endpoint).await?;
-        let serialized = message.serialize()?;
-        tcp_connection.write(&serialized).await?;
+        tcp_connection.write(&message).await?;
         Ok(())
     }
 }

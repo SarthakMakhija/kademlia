@@ -74,7 +74,7 @@ impl Message {
     pub(crate) fn serialize(&self) -> bincode::Result<Vec<u8>> {
         let result = bincode::serialize(self);
         result.map(|mut bytes| {
-            let mut size: u32 = bytes.len() as u32;
+            let size: u32 = bytes.len() as u32;
             let mut size = size.to_be_bytes().to_vec();
 
             let mut serialized = Vec::new();
