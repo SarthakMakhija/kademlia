@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use crate::net::message::Message;
+use crate::net::node::Node;
+use crate::net::AsyncNetwork;
 use crate::routing::Table;
 use crate::store::{Key, Store};
 
@@ -40,8 +42,34 @@ impl<'action> MessageAction for StoreMessageAction<'action> {
     }
 }
 
+pub(crate) struct PingMessageAction<'action> {
+    current_node: &'action Node,
+}
+
+impl<'action> PingMessageAction<'action> {
+    pub(crate) fn new(current_node: &'action Node) -> Self {
+        PingMessageAction { current_node }
+    }
+}
+
+impl<'action> MessageAction for PingMessageAction<'action> {
+    fn act_on(&self, message: Message) {
+        match message {
+            Message::Ping { from } => {
+                let current_node = self.current_node.clone();
+                tokio::spawn(async move {
+                    let _ =
+                        AsyncNetwork::send(Message::ping_reply_type(current_node), from.endpoint())
+                            .await;
+                });
+            }
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
-mod tests {
+mod store_message_action_tests {
     use std::sync::Arc;
 
     use crate::executor::message_action::{MessageAction, StoreMessageAction};
@@ -112,5 +140,43 @@ mod tests {
 
         let (_, contains) = routing_table.contains(&node);
         assert!(contains);
+    }
+}
+
+#[cfg(test)]
+mod ping_message_action_tests {
+    use tokio::net::TcpListener;
+
+    use crate::executor::message_action::{MessageAction, PingMessageAction};
+    use crate::net::connection::AsyncTcpConnection;
+    use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
+    use crate::net::node::Node;
+
+    #[tokio::test]
+    async fn send_a_ping_reply() {
+        let listener_result = TcpListener::bind("localhost:8009").await;
+        assert!(listener_result.is_ok());
+
+        let handle = tokio::spawn(async move {
+            let tcp_listener = listener_result.unwrap();
+            let stream = tcp_listener.accept().await.unwrap();
+
+            let mut connection = AsyncTcpConnection::new(stream.0);
+            let message = connection.read().await.unwrap();
+
+            assert!(message.is_ping_reply_type());
+            if let Message::PingReply { to } = message {
+                assert_eq!("localhost:7878", to.endpoint().address());
+            }
+        });
+
+        let current_node = Node::new(Endpoint::new("localhost".to_string(), 7878));
+        let message_action = PingMessageAction::new(&current_node);
+
+        let node_sending_ping = (Node::new(Endpoint::new("localhost".to_string(), 8009)));
+        message_action.act_on(Message::ping_type(node_sending_ping));
+
+        handle.await.unwrap();
     }
 }

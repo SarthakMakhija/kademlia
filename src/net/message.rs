@@ -5,6 +5,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::net::endpoint::Endpoint;
+use crate::net::message::Message::{FindValue, Ping, PingReply};
 use crate::net::node::{Node, NodeId};
 use crate::store::KeyId;
 
@@ -17,6 +18,10 @@ pub(crate) struct Source {
 impl Source {
     pub(crate) fn to_node(self) -> Node {
         Node::new_with_id(self.node_endpoint, self.node_id)
+    }
+
+    pub(crate) fn endpoint(&self) -> &Endpoint {
+        &self.node_endpoint
     }
 }
 
@@ -36,6 +41,12 @@ pub(crate) enum Message {
     },
     FindNode {
         node_id: NodeId,
+    },
+    Ping {
+        from: Source,
+    },
+    PingReply {
+        to: Source,
     },
     ShutDown,
 }
@@ -63,6 +74,24 @@ impl Message {
         Message::FindNode { node_id }
     }
 
+    pub(crate) fn ping_type(current_node: Node) -> Self {
+        Ping {
+            from: Source {
+                node_endpoint: current_node.endpoint,
+                node_id: current_node.id,
+            },
+        }
+    }
+
+    pub(crate) fn ping_reply_type(current_node: Node) -> Self {
+        PingReply {
+            to: Source {
+                node_endpoint: current_node.endpoint,
+                node_id: current_node.id,
+            },
+        }
+    }
+
     pub(crate) fn shutdown_type() -> Self {
         Message::ShutDown
     }
@@ -72,7 +101,14 @@ impl Message {
     }
 
     pub(crate) fn is_find_value_type(&self) -> bool {
-        if let Message::FindValue { .. } = self {
+        if let FindValue { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
+    pub(crate) fn is_ping_reply_type(&self) -> bool {
+        if let PingReply { .. } = self {
             return true;
         }
         return false;
