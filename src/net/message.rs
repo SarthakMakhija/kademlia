@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::net::endpoint::Endpoint;
-use crate::net::message::Message::{FindValue, SendPing, SendPingReply};
+use crate::net::message::Message::{FindValue, Ping, SendPingReply};
 use crate::net::node::{Node, NodeId};
 use crate::store::KeyId;
 
@@ -42,7 +42,7 @@ pub(crate) enum Message {
     FindNode {
         node_id: NodeId,
     },
-    SendPing {
+    Ping {
         from: Source,
     },
     SendPingReply {
@@ -75,7 +75,7 @@ impl Message {
     }
 
     pub(crate) fn ping_type(current_node: Node) -> Self {
-        SendPing {
+        Ping {
             from: Source {
                 node_endpoint: current_node.endpoint,
                 node_id: current_node.id,

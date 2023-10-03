@@ -55,7 +55,7 @@ impl<'action> PingMessageAction<'action> {
 impl<'action> MessageAction for PingMessageAction<'action> {
     fn act_on(&self, message: Message) {
         match message {
-            Message::SendPing { from } => {
+            Message::Ping { from } => {
                 let current_node = self.current_node.clone();
                 tokio::spawn(async move {
                     let _ =
