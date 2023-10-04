@@ -38,16 +38,20 @@ pub(crate) enum Message {
         source: Source,
     },
     FindValue {
+        message_id: Option<MessageId>,
         key: Vec<u8>,
         key_id: KeyId,
     },
     FindNode {
+        message_id: Option<MessageId>,
         node_id: NodeId,
     },
     Ping {
+        message_id: Option<MessageId>,
         from: Source,
     },
     SendPingReply {
+        message_id: Option<MessageId>,
         to: Source,
     },
     ShutDown,
@@ -69,15 +73,23 @@ impl Message {
 
     pub(crate) fn find_value_type(key: Vec<u8>) -> Self {
         let key_id = KeyId::generate_from_bytes(&key);
-        Message::FindValue { key, key_id }
+        FindValue {
+            message_id: None,
+            key,
+            key_id,
+        }
     }
 
     pub(crate) fn find_node_type(node_id: NodeId) -> Self {
-        Message::FindNode { node_id }
+        Message::FindNode {
+            message_id: None,
+            node_id,
+        }
     }
 
     pub(crate) fn ping_type(current_node: Node) -> Self {
         Ping {
+            message_id: None,
             from: Source {
                 node_endpoint: current_node.endpoint,
                 node_id: current_node.id,
@@ -85,8 +97,9 @@ impl Message {
         }
     }
 
-    pub(crate) fn ping_reply_type(current_node: Node) -> Self {
+    pub(crate) fn ping_reply_type(current_node: Node, message_id: Option<MessageId>) -> Self {
         SendPingReply {
+            message_id,
             to: Source {
                 node_endpoint: current_node.endpoint,
                 node_id: current_node.id,
@@ -96,10 +109,6 @@ impl Message {
 
     pub(crate) fn shutdown_type() -> Self {
         Message::ShutDown
-    }
-
-    pub(crate) fn deserialize_from(bytes: &[u8]) -> bincode::Result<Message> {
-        bincode::deserialize(&bytes[U32_SIZE..])
     }
 
     pub(crate) fn is_find_value_type(&self) -> bool {
@@ -123,6 +132,10 @@ impl Message {
         return false;
     }
 
+    pub(crate) fn deserialize_from(bytes: &[u8]) -> bincode::Result<Message> {
+        bincode::deserialize(&bytes[U32_SIZE..])
+    }
+
     pub(crate) fn serialize(&self) -> bincode::Result<Vec<u8>> {
         let result = bincode::serialize(self);
         result.map(|mut bytes| {
@@ -137,6 +150,17 @@ impl Message {
         })
     }
 
+    pub(crate) fn set_message_id(&mut self, id: MessageId) {
+        match self {
+            FindValue { message_id, .. }
+            | Message::FindNode { message_id, .. }
+            | Ping { message_id, .. } => *message_id = Some(id),
+            Message::Store { .. } => {}
+            SendPingReply { .. } => {}
+            Message::ShutDown => {}
+        }
+    }
+
     fn is_store_type(&self) -> bool {
         if let Message::Store { .. } = self {
             return true;
@@ -146,6 +170,13 @@ impl Message {
 
     fn is_find_node_type(&self) -> bool {
         if let Message::FindNode { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
+    fn is_ping_type(&self) -> bool {
+        if let Ping { .. } = self {
             return true;
         }
         return false;
@@ -192,13 +223,17 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_a_find_value_message() {
-        let store_type = Message::find_value_type("kademlia".as_bytes().to_vec());
-        let serialized = store_type.serialize().unwrap();
+        let find_value_type = Message::find_value_type("kademlia".as_bytes().to_vec());
+        let serialized = find_value_type.serialize().unwrap();
         let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_find_value_type());
         match deserialized {
-            Message::FindValue { key, key_id: _ } => {
+            Message::FindValue {
+                message_id: _,
+                key,
+                key_id: _,
+            } => {
                 assert_eq!("kademlia", String::from_utf8(key).unwrap())
             }
             _ => {
@@ -208,20 +243,82 @@ mod tests {
     }
 
     #[test]
+    fn serialize_deserialize_a_find_value_message_with_message_id() {
+        let mut find_value_type = Message::find_value_type("kademlia".as_bytes().to_vec());
+        find_value_type.set_message_id(10);
+
+        let serialized = find_value_type.serialize().unwrap();
+        let deserialized = Message::deserialize_from(&serialized).unwrap();
+
+        assert!(deserialized.is_find_value_type());
+        match deserialized {
+            Message::FindValue {
+                message_id,
+                key,
+                key_id: _,
+            } => {
+                assert_eq!("kademlia", String::from_utf8(key).unwrap());
+                assert_eq!(Some(10), message_id);
+            }
+            _ => {
+                panic!("Expected findValue type message, but was not");
+            }
+        }
+    }
+
+    #[test]
     fn serialize_deserialize_a_find_node_message() {
-        let store_type =
+        let find_node_type =
             Message::find_node_type(NodeId::generate_from("localhost:8989".to_string()));
-        let serialized = store_type.serialize().unwrap();
+        let serialized = find_node_type.serialize().unwrap();
         let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_find_node_type());
         match deserialized {
-            Message::FindNode { node_id } => {
+            Message::FindNode {
+                message_id: _,
+                node_id,
+            } => {
                 assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, node_id.len())
             }
             _ => {
                 panic!("Expected findNode type message, but was not");
             }
+        }
+    }
+
+    #[test]
+    fn set_message_id_in_find_value() {
+        let mut find_value_type = Message::find_value_type("kademlia".as_bytes().to_vec());
+        find_value_type.set_message_id(100);
+
+        assert!(find_value_type.is_find_value_type());
+        if let Message::FindValue { message_id, .. } = find_value_type {
+            assert_eq!(Some(100), message_id);
+        }
+    }
+
+    #[test]
+    fn set_message_id_in_find_node() {
+        let mut find_node_type =
+            Message::find_node_type(NodeId::generate_from("localhost:8989".to_string()));
+        find_node_type.set_message_id(100);
+
+        assert!(find_node_type.is_find_node_type());
+        if let Message::FindNode { message_id, .. } = find_node_type {
+            assert_eq!(Some(100), message_id);
+        }
+    }
+
+    #[test]
+    fn set_message_id_in_ping() {
+        let mut ping_type =
+            Message::ping_type(Node::new(Endpoint::new("localhost".to_string(), 2334)));
+        ping_type.set_message_id(100);
+
+        assert!(ping_type.is_ping_type());
+        if let Message::Ping { message_id, .. } = ping_type {
+            assert_eq!(Some(100), message_id);
         }
     }
 }

@@ -63,7 +63,7 @@ mod tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_find_value_type());
-            if let Message::FindValue { key, key_id: _ } = message {
+            if let Message::FindValue { key, .. } = message {
                 assert_eq!("Kademlia".to_string(), String::from_utf8(key).unwrap());
             }
         });
