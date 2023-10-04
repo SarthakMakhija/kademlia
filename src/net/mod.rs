@@ -6,7 +6,7 @@ use crate::net::connection::AsyncTcpConnection;
 use crate::net::endpoint::Endpoint;
 use crate::net::message::{Message, MessageId};
 
-mod callback;
+pub(crate) mod callback;
 pub(crate) mod connection;
 pub(crate) mod endpoint;
 pub(crate) mod message;

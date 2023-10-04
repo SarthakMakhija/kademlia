@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::error::Error;
 use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
@@ -6,7 +7,13 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::task::{Context, Poll, Waker};
 
 use crate::net::message::Message;
-use crate::net::wait::{Callback, ResponseError};
+
+pub(crate) type ResponseError = Box<dyn Error + Send + Sync + 'static>;
+
+pub(crate) trait Callback: Send + Sync + 'static {
+    fn on_response(&self, response: Result<Message, ResponseError>);
+    fn as_any(&self) -> &dyn Any;
+}
 
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum ResponseStatus {
@@ -92,9 +99,9 @@ impl Future for &ResponseAwaitingCallbackHandle {
 
 #[cfg(test)]
 mod tests {
-    use crate::net::callback::{ResponseAwaitingCallback, ResponseStatus};
+    use crate::net::callback::{Callback, ResponseAwaitingCallback, ResponseStatus};
     use crate::net::message::Message;
-    use crate::net::wait::{Callback, ResponseTimeoutError};
+    use crate::net::wait::ResponseTimeoutError;
 
     #[tokio::test]
     async fn await_on_callback_with_successful_response() {

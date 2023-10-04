@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -6,13 +5,12 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
+use crate::net::callback::{Callback, ResponseError};
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
 
 use crate::net::message::{Message, MessageId};
 use crate::time::Clock;
-
-pub(crate) type ResponseError = Box<dyn Error + Send + Sync + 'static>;
 
 #[derive(Debug)]
 pub struct ResponseTimeoutError {
@@ -26,11 +24,6 @@ impl Display for ResponseTimeoutError {
 }
 
 impl Error for ResponseTimeoutError {}
-
-pub(crate) trait Callback: Send + Sync + 'static {
-    fn on_response(&self, response: Result<Message, ResponseError>);
-    fn as_any(&self) -> &dyn Any;
-}
 
 pub(crate) struct TimedCallback {
     callback: Arc<dyn Callback>,
@@ -188,13 +181,13 @@ mod waiting_list_tests {
     use crate::time::SystemClock;
 
     mod setup {
+        use crate::net::callback::{Callback, ResponseError};
         use std::any::Any;
         use std::error::Error;
         use std::fmt::{Display, Formatter};
         use std::sync::{Arc, Mutex};
 
         use crate::net::message::Message;
-        use crate::net::wait::{Callback, ResponseError};
 
         pub(crate) struct TestCallback {
             responses: Mutex<Vec<Message>>,
@@ -348,12 +341,12 @@ mod timed_callback_tests {
     use crate::time::{Clock, SystemClock};
 
     mod setup {
+        use crate::net::callback::{Callback, ResponseError};
         use std::any::Any;
         use std::ops::Add;
         use std::time::{Duration, SystemTime};
 
         use crate::net::message::Message;
-        use crate::net::wait::{Callback, ResponseError};
         use crate::time::Clock;
 
         #[derive(Clone)]
