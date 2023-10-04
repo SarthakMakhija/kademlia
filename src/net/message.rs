@@ -27,6 +27,8 @@ impl Source {
 
 pub(crate) const U32_SIZE: usize = size_of::<u32>();
 
+pub(crate) type MessageId = i64;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) enum Message {
     Store {

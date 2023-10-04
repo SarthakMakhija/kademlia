@@ -9,14 +9,14 @@ use std::time::{Duration, SystemTime};
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
 
-use crate::net::message::Message;
+use crate::net::message::{Message, MessageId};
 use crate::time::Clock;
 
 pub(crate) type ResponseError = Box<dyn Error + Send + Sync + 'static>;
 
 #[derive(Debug)]
 pub struct ResponseTimeoutError {
-    pub message_id: i64,
+    pub message_id: MessageId,
 }
 
 impl Display for ResponseTimeoutError {
@@ -49,7 +49,7 @@ impl TimedCallback {
         self.callback.on_response(response);
     }
 
-    fn on_timeout_response(&self, message_id: &i64) {
+    fn on_timeout_response(&self, message_id: &MessageId) {
         self.callback
             .on_response(Err(Box::new(ResponseTimeoutError {
                 message_id: *message_id,
@@ -85,7 +85,7 @@ impl WaitingListOptions {
 }
 
 pub(crate) struct WaitingList {
-    pending_responses: Arc<DashMap<i64, TimedCallback>>,
+    pending_responses: Arc<DashMap<MessageId, TimedCallback>>,
     expired_pending_responses_cleaner: Arc<ExpiredPendingResponsesCleaner>,
     clock: Box<dyn Clock>,
 }
@@ -107,14 +107,14 @@ impl WaitingList {
         waiting_list
     }
 
-    pub(crate) fn add(&self, message_id: i64, callback: Box<dyn Callback>) {
+    pub(crate) fn add(&self, message_id: MessageId, callback: Box<dyn Callback>) {
         self.pending_responses
             .insert(message_id, TimedCallback::new(callback, self.clock.now()));
     }
 
     pub(crate) fn handle_response(
         &self,
-        message_id: i64,
+        message_id: MessageId,
         response: Result<Message, ResponseError>,
     ) {
         self.handle_response_with_clear_entry(message_id, response, true);
@@ -122,7 +122,7 @@ impl WaitingList {
 
     pub(crate) fn handle_response_with_clear_entry(
         &self,
-        message_id: i64,
+        message_id: MessageId,
         response: Result<Message, ResponseError>,
         clear_entry: bool,
     ) {
@@ -146,13 +146,16 @@ impl WaitingList {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_callback(&self, message_id: &i64) -> Option<Ref<i64, TimedCallback>> {
+    pub(crate) fn get_callback(
+        &self,
+        message_id: &MessageId,
+    ) -> Option<Ref<MessageId, TimedCallback>> {
         self.pending_responses.get(message_id)
     }
 }
 
 struct ExpiredPendingResponsesCleaner {
-    pending_responses: Arc<DashMap<i64, TimedCallback>>,
+    pending_responses: Arc<DashMap<MessageId, TimedCallback>>,
     clock: Box<dyn Clock>,
     expiry_after: Duration,
     should_stop: AtomicBool,
@@ -161,7 +164,7 @@ struct ExpiredPendingResponsesCleaner {
 impl ExpiredPendingResponsesCleaner {
     fn new(
         waiting_list_options: WaitingListOptions,
-        pending_responses: Arc<DashMap<i64, TimedCallback>>,
+        pending_responses: Arc<DashMap<MessageId, TimedCallback>>,
         clock: Box<dyn Clock>,
     ) -> Arc<ExpiredPendingResponsesCleaner> {
         let cleaner = Arc::new(ExpiredPendingResponsesCleaner {
@@ -204,7 +207,7 @@ mod waiting_list_tests {
     use std::thread;
     use std::time::Duration;
 
-    use crate::net::message::Message;
+    use crate::net::message::{Message, MessageId};
     use crate::net::wait::waiting_list_tests::setup::{TestCallback, TestError};
     use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::time::SystemClock;
@@ -289,7 +292,7 @@ mod waiting_list_tests {
         );
         let callback = TestCallback::new();
 
-        let message_id: i64 = 10;
+        let message_id: MessageId = 10;
         waiting_list.add(message_id, callback);
         waiting_list.handle_response_with_clear_entry(
             message_id,
@@ -315,7 +318,7 @@ mod waiting_list_tests {
         );
         let callback = TestCallback::new();
 
-        let message_id: i64 = 10;
+        let message_id: MessageId = 10;
         waiting_list.add(message_id, callback);
         waiting_list.handle_response_with_clear_entry(
             message_id,
@@ -343,8 +346,8 @@ mod waiting_list_tests {
         );
         let callback = TestCallback::new();
 
-        let message_id: i64 = 10;
-        let unknown_message_id: i64 = 20;
+        let message_id: MessageId = 10;
+        let unknown_message_id: MessageId = 20;
 
         waiting_list.add(message_id, callback);
         waiting_list.handle_response_with_clear_entry(
@@ -371,7 +374,7 @@ mod waiting_list_tests {
         );
         let callback = TestCallback::new();
 
-        let message_id: i64 = 10;
+        let message_id: MessageId = 10;
         waiting_list.add(message_id, callback);
 
         thread::sleep(Duration::from_secs(1));
@@ -452,6 +455,7 @@ mod expired_pending_responses_cleaner_tests {
     use std::thread;
     use std::time::{Duration, SystemTime};
 
+    use crate::net::message::MessageId;
     use dashmap::DashMap;
 
     use crate::net::wait::expired_pending_responses_cleaner_tests::setup::{
@@ -466,7 +470,7 @@ mod expired_pending_responses_cleaner_tests {
         use std::sync::Mutex;
         use std::time::{Duration, SystemTime};
 
-        use crate::net::message::Message;
+        use crate::net::message::{Message, MessageId};
         use crate::net::wait::{Callback, ResponseError, ResponseTimeoutError};
         use crate::time::Clock;
 
@@ -476,7 +480,7 @@ mod expired_pending_responses_cleaner_tests {
         }
 
         pub struct TimeoutErrorResponseCallback {
-            pub(crate) failed_message_id: Mutex<i64>,
+            pub(crate) failed_message_id: Mutex<MessageId>,
         }
 
         impl Clock for FutureClock {
@@ -503,7 +507,7 @@ mod expired_pending_responses_cleaner_tests {
 
     #[test]
     fn error_response_on_expired_key() {
-        let message_id: i64 = 1;
+        let message_id: MessageId = 1;
         let clock: Box<dyn Clock> = Box::new(FutureClock {
             duration_to_add: Duration::from_secs(5),
         });
