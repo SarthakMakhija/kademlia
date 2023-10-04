@@ -1,10 +1,12 @@
 use std::any::Any;
 use std::error::Error;
+use std::time::SystemTime;
 
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
 
 use crate::net::message::Message;
+use crate::time::Clock;
 
 pub(crate) type ResponseError = Box<dyn Error>;
 
@@ -13,19 +15,45 @@ pub(crate) trait Callback {
     fn as_any(&self) -> &dyn Any;
 }
 
+pub(crate) struct TimedCallback {
+    callback: Box<dyn Callback>,
+    creation_time: SystemTime,
+}
+
+impl TimedCallback {
+    fn new(callback: Box<dyn Callback>, creation_time: SystemTime) -> Self {
+        TimedCallback {
+            callback,
+            creation_time,
+        }
+    }
+
+    fn on_response(&self, response: Result<Message, ResponseError>) {
+        self.callback.on_response(response);
+    }
+
+    #[cfg(test)]
+    fn get_callback(&self) -> &Box<dyn Callback> {
+        &self.callback
+    }
+}
+
 pub(crate) struct WaitingList {
-    pending_responses: DashMap<i64, Box<dyn Callback>>,
+    pending_responses: DashMap<i64, TimedCallback>,
+    clock: Box<dyn Clock>,
 }
 
 impl WaitingList {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(clock: Box<dyn Clock>) -> Self {
         WaitingList {
             pending_responses: DashMap::new(),
+            clock,
         }
     }
 
     pub(crate) fn add(&self, message_id: i64, callback: Box<dyn Callback>) {
-        self.pending_responses.insert(message_id, callback);
+        self.pending_responses
+            .insert(message_id, TimedCallback::new(callback, self.clock.now()));
     }
 
     pub(crate) fn handle_response(
@@ -58,10 +86,7 @@ impl WaitingList {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_callback<'guard>(
-        &'guard self,
-        message_id: &i64,
-    ) -> Option<Ref<'guard, i64, Box<dyn Callback>>> {
+    pub(crate) fn get_callback(&self, message_id: &i64) -> Option<Ref<i64, TimedCallback>> {
         self.pending_responses.get(message_id)
     }
 }
@@ -71,6 +96,7 @@ mod tests {
     use crate::net::message::Message;
     use crate::net::wait::tests::setup::{TestCallback, TestError};
     use crate::net::wait::WaitingList;
+    use crate::time::SystemClock;
 
     mod setup {
         use std::any::Any;
@@ -146,7 +172,7 @@ mod tests {
 
     #[test]
     fn add_callback_to_waiting_list() {
-        let waiting_list = WaitingList::new();
+        let waiting_list = WaitingList::new(SystemClock::new());
         let callback = TestCallback::new();
 
         let message_id: i64 = 10;
@@ -158,7 +184,7 @@ mod tests {
         );
 
         let callback_by_key_ref = waiting_list.get_callback(&message_id).unwrap();
-        let callback = callback_by_key_ref.value();
+        let callback = callback_by_key_ref.get_callback();
         let callback = callback.as_any().downcast_ref::<TestCallback>().unwrap();
 
         let message = callback.get_message_at(0).unwrap();
@@ -167,7 +193,7 @@ mod tests {
 
     #[test]
     fn add_failure_callback_to_waiting_list() {
-        let waiting_list = WaitingList::new();
+        let waiting_list = WaitingList::new(SystemClock::new());
         let callback = TestCallback::new();
 
         let message_id: i64 = 10;
@@ -181,7 +207,7 @@ mod tests {
         );
 
         let callback_by_key_ref = waiting_list.get_callback(&message_id).unwrap();
-        let callback = callback_by_key_ref.value();
+        let callback = callback_by_key_ref.get_callback();
         let callback = callback.as_any().downcast_ref::<TestCallback>().unwrap();
 
         let error = callback.get_error_at(0).unwrap();
@@ -190,7 +216,7 @@ mod tests {
 
     #[test]
     fn handle_response_for_unknown_message_id() {
-        let waiting_list = WaitingList::new();
+        let waiting_list = WaitingList::new(SystemClock::new());
         let callback = TestCallback::new();
 
         let message_id: i64 = 10;
@@ -204,7 +230,7 @@ mod tests {
         );
 
         let callback_by_key_ref = waiting_list.get_callback(&message_id).unwrap();
-        let callback = callback_by_key_ref.value();
+        let callback = callback_by_key_ref.get_callback();
         let callback = callback.as_any().downcast_ref::<TestCallback>().unwrap();
 
         let message = callback.get_message_at(0);
