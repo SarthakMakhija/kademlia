@@ -4,7 +4,7 @@
 
 3. WaitingList
     - draft - done
-    - cleaner
+    - cleaner - done
     - AsyncNetwork to own waitinglist
     - AsyncNetwork to support method which can put an entry in waiting list
     - Message Id generation

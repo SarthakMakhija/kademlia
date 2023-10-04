@@ -85,16 +85,26 @@ impl WaitingListOptions {
 }
 
 pub(crate) struct WaitingList {
-    pending_responses: DashMap<i64, TimedCallback>,
+    pending_responses: Arc<DashMap<i64, TimedCallback>>,
+    expired_pending_responses_cleaner: Arc<ExpiredPendingResponsesCleaner>,
     clock: Box<dyn Clock>,
 }
 
 impl WaitingList {
-    pub(crate) fn new(clock: Box<dyn Clock>) -> Self {
-        WaitingList {
-            pending_responses: DashMap::new(),
+    pub(crate) fn new(waiting_list_options: WaitingListOptions, clock: Box<dyn Clock>) -> Self {
+        let pending_responses = Arc::new(DashMap::new());
+        let cleaner = ExpiredPendingResponsesCleaner::new(
+            waiting_list_options,
+            pending_responses.clone(),
+            clock.clone(),
+        );
+
+        let waiting_list = WaitingList {
+            pending_responses,
+            expired_pending_responses_cleaner: cleaner,
             clock,
-        }
+        };
+        waiting_list
     }
 
     pub(crate) fn add(&self, message_id: i64, callback: Box<dyn Callback>) {
@@ -129,6 +139,10 @@ impl WaitingList {
             let callback = callback_by_key.value();
             callback.on_response(response);
         }
+    }
+
+    pub(crate) fn stop(&self) {
+        self.expired_pending_responses_cleaner.stop();
     }
 
     #[cfg(test)]
@@ -187,9 +201,12 @@ impl ExpiredPendingResponsesCleaner {
 
 #[cfg(test)]
 mod waiting_list_tests {
+    use std::thread;
+    use std::time::Duration;
+
     use crate::net::message::Message;
     use crate::net::wait::waiting_list_tests::setup::{TestCallback, TestError};
-    use crate::net::wait::WaitingList;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::time::SystemClock;
 
     mod setup {
@@ -266,7 +283,10 @@ mod waiting_list_tests {
 
     #[test]
     fn add_callback_to_waiting_list() {
-        let waiting_list = WaitingList::new(SystemClock::new());
+        let waiting_list = WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        );
         let callback = TestCallback::new();
 
         let message_id: i64 = 10;
@@ -282,12 +302,17 @@ mod waiting_list_tests {
         let callback = callback.as_any().downcast_ref::<TestCallback>().unwrap();
 
         let message = callback.get_message_at(0).unwrap();
-        assert!(message.is_shutdown_type())
+        assert!(message.is_shutdown_type());
+
+        waiting_list.stop();
     }
 
     #[test]
     fn add_failure_callback_to_waiting_list() {
-        let waiting_list = WaitingList::new(SystemClock::new());
+        let waiting_list = WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        );
         let callback = TestCallback::new();
 
         let message_id: i64 = 10;
@@ -306,11 +331,16 @@ mod waiting_list_tests {
 
         let error = callback.get_error_at(0).unwrap();
         assert_eq!("test error", error.msg);
+
+        waiting_list.stop();
     }
 
     #[test]
     fn handle_response_for_unknown_message_id() {
-        let waiting_list = WaitingList::new(SystemClock::new());
+        let waiting_list = WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        );
         let callback = TestCallback::new();
 
         let message_id: i64 = 10;
@@ -329,6 +359,25 @@ mod waiting_list_tests {
 
         let message = callback.get_message_at(0);
         assert!(message.is_none());
+
+        waiting_list.stop();
+    }
+
+    #[test]
+    fn expire_a_pending_response() {
+        let waiting_list = WaitingList::new(
+            WaitingListOptions::new(Duration::from_millis(120), Duration::from_millis(5)),
+            SystemClock::new(),
+        );
+        let callback = TestCallback::new();
+
+        let message_id: i64 = 10;
+        waiting_list.add(message_id, callback);
+
+        thread::sleep(Duration::from_secs(1));
+
+        assert!(waiting_list.pending_responses.is_empty());
+        waiting_list.stop();
     }
 }
 
