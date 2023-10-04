@@ -44,11 +44,18 @@ impl<'action> MessageAction for StoreMessageAction<'action> {
 
 pub(crate) struct PingMessageAction<'action> {
     current_node: &'action Node,
+    async_network: &'action Arc<AsyncNetwork>,
 }
 
 impl<'action> PingMessageAction<'action> {
-    pub(crate) fn new(current_node: &'action Node) -> Self {
-        PingMessageAction { current_node }
+    pub(crate) fn new(
+        current_node: &'action Node,
+        async_network: &'action Arc<AsyncNetwork>,
+    ) -> Self {
+        PingMessageAction {
+            current_node,
+            async_network,
+        }
     }
 }
 
@@ -57,10 +64,12 @@ impl<'action> MessageAction for PingMessageAction<'action> {
         match message {
             Message::Ping { from } => {
                 let current_node = self.current_node.clone();
+                let async_network = self.async_network.clone();
+
                 tokio::spawn(async move {
-                    let _ =
-                        AsyncNetwork::send(Message::ping_reply_type(current_node), from.endpoint())
-                            .await;
+                    let _ = async_network
+                        .send(Message::ping_reply_type(current_node), from.endpoint())
+                        .await;
                 });
             }
             _ => {}
@@ -145,6 +154,8 @@ mod store_message_action_tests {
 
 #[cfg(test)]
 mod ping_message_action_tests {
+    use std::sync::Arc;
+
     use tokio::net::TcpListener;
 
     use crate::executor::message_action::{MessageAction, PingMessageAction};
@@ -152,6 +163,7 @@ mod ping_message_action_tests {
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
+    use crate::net::AsyncNetwork;
 
     #[tokio::test]
     async fn send_a_ping_reply() {
@@ -171,8 +183,9 @@ mod ping_message_action_tests {
             }
         });
 
+        let async_network = Arc::new(AsyncNetwork::new());
         let current_node = Node::new(Endpoint::new("localhost".to_string(), 7878));
-        let message_action = PingMessageAction::new(&current_node);
+        let message_action = PingMessageAction::new(&current_node, &async_network);
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 8009));
         message_action.act_on(Message::ping_type(node_sending_ping));

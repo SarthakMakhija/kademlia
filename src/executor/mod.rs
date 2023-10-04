@@ -9,6 +9,7 @@ use crate::executor::message_action::{MessageAction, PingMessageAction, StoreMes
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::net::message::Message;
 use crate::net::node::Node;
+use crate::net::AsyncNetwork;
 use crate::routing::Table;
 use crate::store::Store;
 
@@ -18,6 +19,7 @@ mod response;
 pub(crate) struct MessageExecutor {
     sender: Sender<ChanneledMessage>,
     routing_table: Arc<Table>,
+    async_network: Arc<AsyncNetwork>,
 }
 
 impl MessageExecutor {
@@ -28,6 +30,7 @@ impl MessageExecutor {
         let executor = MessageExecutor {
             sender,
             routing_table: Arc::new(Table::new(current_node.node_id())),
+            async_network: Arc::new(AsyncNetwork::new()),
         };
         executor.start(current_node, receiver, store);
         executor
@@ -55,6 +58,8 @@ impl MessageExecutor {
         store: Arc<dyn Store>,
     ) {
         let routing_table = self.routing_table.clone();
+        let async_network = self.async_network.clone();
+
         tokio::spawn(async move {
             match receiver.recv().await {
                 Some(channeled_message) => match channeled_message.message {
@@ -67,7 +72,7 @@ impl MessageExecutor {
                     }
                     Message::Ping { .. } => {
                         info!("working on send ping message in MessageExecutor");
-                        let action = PingMessageAction::new(&current_node);
+                        let action = PingMessageAction::new(&current_node, &async_network);
                         action.act_on(channeled_message.message.clone());
 
                         let _ = channeled_message.send_response(MessageStatus::PingDone);

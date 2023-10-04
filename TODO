@@ -2,22 +2,24 @@
 2. Add node to the routing table in store message - done
 8. send PingReply from the receiving node to the source node - done
 
-3. WaitingList
+3. WaitingList: By 8th Oct
     - draft - done
     - cleaner - done
     - AsyncNetwork to own waitinglist
     - AsyncNetwork to support method which can put an entry in waiting list
     - Message Id generation
     - decide if this needs arc
-4. Add node as RPC (?)
-1. Methods for clone and use those clone methods
+0. Add node as RPC (?): By 8th Oct
+
+1. Methods for clone and use those clone methods: By 8th Oct
 4. Go through Kademlia blog/paper once
 ------
-0. FindNode
+0. FindNode: By 8th Oct
+0. FindValue: By 8th Oct
+3. Provide support for findValue in executor: By 8th Oct
 0. See if there are gaps in what has been built (like LRU for nodes in a bucket)
 1. Iterate find
 2. Server
-3. Provide support for findValue in executor
 5. Remove node?
 6. Node health check
 8. Replication

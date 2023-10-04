@@ -43,7 +43,12 @@ impl Display for NetworkErrorKind {
 pub(crate) struct AsyncNetwork;
 
 impl AsyncNetwork {
+    pub(crate) fn new() -> Self {
+        AsyncNetwork
+    }
+
     pub(crate) async fn send(
+        &self,
         message: Message,
         endpoint: &Endpoint,
     ) -> Result<(), NetworkErrorKind> {
@@ -68,18 +73,19 @@ mod tests {
         let listener_result = TcpListener::bind("localhost:8989").await;
         assert!(listener_result.is_ok());
 
-        let network_send_result = AsyncNetwork::send(
-            Message::store_type(
-                "kademlia".as_bytes().to_vec(),
-                "distributed hash table".as_bytes().to_vec(),
-                Node::new_with_id(
-                    Endpoint::new("localhost".to_string(), 2389),
-                    Id::new(vec![10, 20]),
+        let network_send_result = AsyncNetwork::new()
+            .send(
+                Message::store_type(
+                    "kademlia".as_bytes().to_vec(),
+                    "distributed hash table".as_bytes().to_vec(),
+                    Node::new_with_id(
+                        Endpoint::new("localhost".to_string(), 2389),
+                        Id::new(vec![10, 20]),
+                    ),
                 ),
-            ),
-            &Endpoint::new("localhost".to_string(), 8989),
-        )
-        .await;
+                &Endpoint::new("localhost".to_string(), 8989),
+            )
+            .await;
         assert!(network_send_result.is_ok());
     }
 }
