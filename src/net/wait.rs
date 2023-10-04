@@ -1,5 +1,9 @@
 use std::any::Any;
 use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
 use std::time::{Duration, SystemTime};
 
 use dashmap::mapref::one::Ref;
@@ -8,9 +12,22 @@ use dashmap::DashMap;
 use crate::net::message::Message;
 use crate::time::Clock;
 
-pub(crate) type ResponseError = Box<dyn Error>;
+pub(crate) type ResponseError = Box<dyn Error + Send + Sync + 'static>;
 
-pub(crate) trait Callback {
+#[derive(Debug)]
+pub struct ResponseTimeoutError {
+    pub message_id: i64,
+}
+
+impl Display for ResponseTimeoutError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "response timeout for {}", self.message_id)
+    }
+}
+
+impl Error for ResponseTimeoutError {}
+
+pub(crate) trait Callback: Send + Sync + 'static {
     fn on_response(&self, response: Result<Message, ResponseError>);
     fn as_any(&self) -> &dyn Any;
 }
@@ -32,6 +49,13 @@ impl TimedCallback {
         self.callback.on_response(response);
     }
 
+    fn on_timeout_response(&self, message_id: &i64) {
+        self.callback
+            .on_response(Err(Box::new(ResponseTimeoutError {
+                message_id: *message_id,
+            })));
+    }
+
     fn has_expired(&self, clock: &Box<dyn Clock>, expiry_after: &Duration) -> bool {
         clock.duration_since(self.creation_time).gt(expiry_after)
     }
@@ -39,6 +63,24 @@ impl TimedCallback {
     #[cfg(test)]
     fn get_callback(&self) -> &Box<dyn Callback> {
         &self.callback
+    }
+}
+
+#[derive(Copy, Clone)]
+pub(crate) struct WaitingListOptions {
+    pub(crate) expire_pending_responses_after: Duration,
+    pub(crate) run_expired_pending_responses_checker_every: Duration,
+}
+
+impl WaitingListOptions {
+    pub(crate) fn new(
+        expire_pending_responses_after: Duration,
+        run_expired_pending_responses_checker_every: Duration,
+    ) -> Self {
+        WaitingListOptions {
+            expire_pending_responses_after,
+            run_expired_pending_responses_checker_every,
+        }
     }
 }
 
@@ -92,6 +134,54 @@ impl WaitingList {
     #[cfg(test)]
     pub(crate) fn get_callback(&self, message_id: &i64) -> Option<Ref<i64, TimedCallback>> {
         self.pending_responses.get(message_id)
+    }
+}
+
+struct ExpiredPendingResponsesCleaner {
+    pending_responses: Arc<DashMap<i64, TimedCallback>>,
+    clock: Box<dyn Clock>,
+    expiry_after: Duration,
+    should_stop: AtomicBool,
+}
+
+impl ExpiredPendingResponsesCleaner {
+    fn new(
+        waiting_list_options: WaitingListOptions,
+        pending_responses: Arc<DashMap<i64, TimedCallback>>,
+        clock: Box<dyn Clock>,
+    ) -> Arc<ExpiredPendingResponsesCleaner> {
+        let cleaner = Arc::new(ExpiredPendingResponsesCleaner {
+            pending_responses,
+            clock,
+            expiry_after: waiting_list_options.expire_pending_responses_after,
+            should_stop: AtomicBool::new(false),
+        });
+        cleaner.clone().start(waiting_list_options);
+        cleaner
+    }
+
+    fn start(self: Arc<ExpiredPendingResponsesCleaner>, waiting_list_options: WaitingListOptions) {
+        thread::spawn(move || loop {
+            if self.should_stop.load(Ordering::Acquire) {
+                return;
+            }
+            (&self).clean();
+            thread::sleep(waiting_list_options.run_expired_pending_responses_checker_every);
+        });
+    }
+
+    fn stop(self: &Arc<ExpiredPendingResponsesCleaner>) {
+        self.should_stop.store(true, Ordering::Release);
+    }
+
+    fn clean(self: &Arc<ExpiredPendingResponsesCleaner>) {
+        self.pending_responses.retain(|message_id, timed_callback| {
+            if timed_callback.has_expired(&self.clock, &self.expiry_after) {
+                timed_callback.on_timeout_response(message_id);
+                return false;
+            }
+            return true;
+        });
     }
 }
 
@@ -244,10 +334,11 @@ mod waiting_list_tests {
 
 #[cfg(test)]
 mod timed_callback_tests {
+    use std::time::Duration;
+
     use crate::net::wait::timed_callback_tests::setup::{FutureClock, NothingCallback};
     use crate::net::wait::TimedCallback;
     use crate::time::{Clock, SystemClock};
-    use std::time::Duration;
 
     mod setup {
         use std::any::Any;
@@ -303,5 +394,89 @@ mod timed_callback_tests {
             false,
             timed_callback.has_expired(&clock, &Duration::from_secs(2))
         );
+    }
+}
+
+#[cfg(test)]
+mod expired_pending_responses_cleaner_tests {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    use std::time::{Duration, SystemTime};
+
+    use dashmap::DashMap;
+
+    use crate::net::wait::expired_pending_responses_cleaner_tests::setup::{
+        FutureClock, TimeoutErrorResponseCallback,
+    };
+    use crate::net::wait::{ExpiredPendingResponsesCleaner, TimedCallback, WaitingListOptions};
+    use crate::time::Clock;
+
+    mod setup {
+        use std::any::Any;
+        use std::ops::Add;
+        use std::sync::Mutex;
+        use std::time::{Duration, SystemTime};
+
+        use crate::net::message::Message;
+        use crate::net::wait::{Callback, ResponseError, ResponseTimeoutError};
+        use crate::time::Clock;
+
+        #[derive(Clone)]
+        pub struct FutureClock {
+            pub(crate) duration_to_add: Duration,
+        }
+
+        pub struct TimeoutErrorResponseCallback {
+            pub(crate) failed_message_id: Mutex<i64>,
+        }
+
+        impl Clock for FutureClock {
+            fn now(&self) -> SystemTime {
+                SystemTime::now().add(self.duration_to_add)
+            }
+        }
+
+        impl Callback for TimeoutErrorResponseCallback {
+            fn on_response(&self, response: Result<Message, ResponseError>) {
+                let response_error_type = response.unwrap_err();
+                let timeout_error = response_error_type
+                    .downcast_ref::<ResponseTimeoutError>()
+                    .unwrap();
+                let mut guard = self.failed_message_id.lock().unwrap();
+                *guard = timeout_error.message_id;
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+    }
+
+    #[test]
+    fn error_response_on_expired_key() {
+        let message_id: i64 = 1;
+        let clock: Box<dyn Clock> = Box::new(FutureClock {
+            duration_to_add: Duration::from_secs(5),
+        });
+
+        let pending_responses = Arc::new(DashMap::new());
+        let error_response_callback = Box::new(TimeoutErrorResponseCallback {
+            failed_message_id: Mutex::new(0),
+        });
+
+        pending_responses.insert(
+            message_id,
+            TimedCallback::new(error_response_callback, SystemTime::now()),
+        );
+
+        let cleaner = ExpiredPendingResponsesCleaner::new(
+            WaitingListOptions::new(Duration::from_secs(2), Duration::from_millis(0)),
+            pending_responses.clone(),
+            clock,
+        );
+        thread::sleep(Duration::from_millis(5));
+        assert!(pending_responses.is_empty());
+
+        cleaner.stop();
     }
 }
