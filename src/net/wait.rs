@@ -33,12 +33,12 @@ pub(crate) trait Callback: Send + Sync + 'static {
 }
 
 pub(crate) struct TimedCallback {
-    callback: Box<dyn Callback>,
+    callback: Arc<dyn Callback>,
     creation_time: SystemTime,
 }
 
 impl TimedCallback {
-    fn new(callback: Box<dyn Callback>, creation_time: SystemTime) -> Self {
+    fn new(callback: Arc<dyn Callback>, creation_time: SystemTime) -> Self {
         TimedCallback {
             callback,
             creation_time,
@@ -61,7 +61,7 @@ impl TimedCallback {
     }
 
     #[cfg(test)]
-    fn get_callback(&self) -> &Box<dyn Callback> {
+    fn get_callback(&self) -> &Arc<dyn Callback> {
         &self.callback
     }
 }
@@ -107,7 +107,7 @@ impl WaitingList {
         waiting_list
     }
 
-    pub(crate) fn add(&self, message_id: MessageId, callback: Box<dyn Callback>) {
+    pub(crate) fn add(&self, message_id: MessageId, callback: Arc<dyn Callback>) {
         self.pending_responses
             .insert(message_id, TimedCallback::new(callback, self.clock.now()));
     }
@@ -117,40 +117,15 @@ impl WaitingList {
         message_id: MessageId,
         response: Result<Message, ResponseError>,
     ) {
-        self.handle_response_with_clear_entry(message_id, response, true);
-    }
-
-    pub(crate) fn handle_response_with_clear_entry(
-        &self,
-        message_id: MessageId,
-        response: Result<Message, ResponseError>,
-        clear_entry: bool,
-    ) {
-        if clear_entry {
-            let key_value_existence = self.pending_responses.remove(&message_id);
-            if let Some(callback_by_key) = key_value_existence {
-                let callback = callback_by_key.1;
-                callback.on_response(response);
-            }
-            return;
-        }
-        let key_value_existence = self.pending_responses.get(&message_id);
+        let key_value_existence = self.pending_responses.remove(&message_id);
         if let Some(callback_by_key) = key_value_existence {
-            let callback = callback_by_key.value();
+            let callback = callback_by_key.1;
             callback.on_response(response);
         }
     }
 
     pub(crate) fn stop(&self) {
         self.expired_pending_responses_cleaner.stop();
-    }
-
-    #[cfg(test)]
-    pub(crate) fn get_callback(
-        &self,
-        message_id: &MessageId,
-    ) -> Option<Ref<MessageId, TimedCallback>> {
-        self.pending_responses.get(message_id)
     }
 }
 
@@ -216,7 +191,7 @@ mod waiting_list_tests {
         use std::any::Any;
         use std::error::Error;
         use std::fmt::{Display, Formatter};
-        use std::sync::Mutex;
+        use std::sync::{Arc, Mutex};
 
         use crate::net::message::Message;
         use crate::net::wait::{Callback, ResponseError};
@@ -240,8 +215,8 @@ mod waiting_list_tests {
         impl Error for TestError {}
 
         impl TestCallback {
-            pub(crate) fn new() -> Box<TestCallback> {
-                Box::new(TestCallback {
+            pub(crate) fn new() -> Arc<TestCallback> {
+                Arc::new(TestCallback {
                     responses: Mutex::new(Vec::new()),
                     error_responses: Mutex::new(Vec::new()),
                 })
@@ -293,16 +268,8 @@ mod waiting_list_tests {
         let callback = TestCallback::new();
 
         let message_id: MessageId = 10;
-        waiting_list.add(message_id, callback);
-        waiting_list.handle_response_with_clear_entry(
-            message_id,
-            Ok(Message::shutdown_type()),
-            false,
-        );
-
-        let callback_by_key_ref = waiting_list.get_callback(&message_id).unwrap();
-        let callback = callback_by_key_ref.get_callback();
-        let callback = callback.as_any().downcast_ref::<TestCallback>().unwrap();
+        waiting_list.add(message_id, callback.clone());
+        waiting_list.handle_response(message_id, Ok(Message::shutdown_type()));
 
         let message = callback.get_message_at(0).unwrap();
         assert!(message.is_shutdown_type());
@@ -319,18 +286,13 @@ mod waiting_list_tests {
         let callback = TestCallback::new();
 
         let message_id: MessageId = 10;
-        waiting_list.add(message_id, callback);
-        waiting_list.handle_response_with_clear_entry(
+        waiting_list.add(message_id, callback.clone());
+        waiting_list.handle_response(
             message_id,
             Err(Box::new(TestError {
                 msg: "test error".to_string(),
             })),
-            false,
         );
-
-        let callback_by_key_ref = waiting_list.get_callback(&message_id).unwrap();
-        let callback = callback_by_key_ref.get_callback();
-        let callback = callback.as_any().downcast_ref::<TestCallback>().unwrap();
 
         let error = callback.get_error_at(0).unwrap();
         assert_eq!("test error", error.msg);
@@ -349,16 +311,8 @@ mod waiting_list_tests {
         let message_id: MessageId = 10;
         let unknown_message_id: MessageId = 20;
 
-        waiting_list.add(message_id, callback);
-        waiting_list.handle_response_with_clear_entry(
-            unknown_message_id,
-            Ok(Message::shutdown_type()),
-            false,
-        );
-
-        let callback_by_key_ref = waiting_list.get_callback(&message_id).unwrap();
-        let callback = callback_by_key_ref.get_callback();
-        let callback = callback.as_any().downcast_ref::<TestCallback>().unwrap();
+        waiting_list.add(message_id, callback.clone());
+        waiting_list.handle_response(unknown_message_id, Ok(Message::shutdown_type()));
 
         let message = callback.get_message_at(0);
         assert!(message.is_none());
@@ -386,6 +340,7 @@ mod waiting_list_tests {
 
 #[cfg(test)]
 mod timed_callback_tests {
+    use std::sync::Arc;
     use std::time::Duration;
 
     use crate::net::wait::timed_callback_tests::setup::{FutureClock, NothingCallback};
@@ -426,7 +381,7 @@ mod timed_callback_tests {
     #[test]
     fn has_expired() {
         let timed_callback =
-            TimedCallback::new(Box::new(NothingCallback), SystemClock::new().now());
+            TimedCallback::new(Arc::new(NothingCallback), SystemClock::new().now());
 
         let clock: Box<dyn Clock> = Box::new(FutureClock {
             duration_to_add: Duration::from_secs(5),
@@ -438,7 +393,7 @@ mod timed_callback_tests {
     #[test]
     fn has_not_expired() {
         let timed_callback =
-            TimedCallback::new(Box::new(NothingCallback), SystemClock::new().now());
+            TimedCallback::new(Arc::new(NothingCallback), SystemClock::new().now());
 
         let clock: Box<dyn Clock> = SystemClock::new();
 
@@ -455,9 +410,9 @@ mod expired_pending_responses_cleaner_tests {
     use std::thread;
     use std::time::{Duration, SystemTime};
 
-    use crate::net::message::MessageId;
     use dashmap::DashMap;
 
+    use crate::net::message::MessageId;
     use crate::net::wait::expired_pending_responses_cleaner_tests::setup::{
         FutureClock, TimeoutErrorResponseCallback,
     };
@@ -513,7 +468,7 @@ mod expired_pending_responses_cleaner_tests {
         });
 
         let pending_responses = Arc::new(DashMap::new());
-        let error_response_callback = Box::new(TimeoutErrorResponseCallback {
+        let error_response_callback = Arc::new(TimeoutErrorResponseCallback {
             failed_message_id: Mutex::new(0),
         });
 

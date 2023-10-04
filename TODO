@@ -6,17 +6,17 @@
     - draft - done
     - cleaner - done
     - Message Id generation - done
-    - AsyncNetwork to own waitinglist
+    - AsyncNetwork to own WaitingList
     - AsyncNetwork to support method which can put an entry in waiting list
     - decide if this needs arc
 0. Add node as RPC (?): By 8th Oct
-
 1. Methods for clone and use those clone methods: By 8th Oct
-4. Go through Kademlia blog/paper once
 ------
 0. FindNode: By 8th Oct
 0. FindValue: By 8th Oct
 3. Provide support for findValue in executor: By 8th Oct
+
+4. Go through Kademlia blog/paper once
 0. See if there are gaps in what has been built (like LRU for nodes in a bucket)
 1. Iterate find
 2. Server

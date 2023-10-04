@@ -71,7 +71,7 @@ impl MessageExecutor {
                         let _ = channeled_message.send_response(MessageStatus::StoreDone);
                     }
                     Message::Ping { .. } => {
-                        info!("working on send ping message in MessageExecutor");
+                        info!("working on ping message in MessageExecutor");
                         let action = PingMessageAction::new(&current_node, &async_network);
                         action.act_on(channeled_message.message.clone());
 
