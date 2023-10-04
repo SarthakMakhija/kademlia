@@ -132,6 +132,13 @@ impl Message {
         return false;
     }
 
+    pub(crate) fn is_ping_type(&self) -> bool {
+        if let Ping { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
     pub(crate) fn deserialize_from(bytes: &[u8]) -> bincode::Result<Message> {
         bincode::deserialize(&bytes[U32_SIZE..])
     }
@@ -170,13 +177,6 @@ impl Message {
 
     fn is_find_node_type(&self) -> bool {
         if let Message::FindNode { .. } = self {
-            return true;
-        }
-        return false;
-    }
-
-    fn is_ping_type(&self) -> bool {
-        if let Ping { .. } = self {
             return true;
         }
         return false;

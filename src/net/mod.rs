@@ -1,9 +1,10 @@
 use std::fmt::{Display, Formatter};
 use std::io::Error;
+use std::sync::atomic::{AtomicI64, Ordering};
 
 use crate::net::connection::AsyncTcpConnection;
 use crate::net::endpoint::Endpoint;
-use crate::net::message::Message;
+use crate::net::message::{Message, MessageId};
 
 pub(crate) mod connection;
 pub(crate) mod endpoint;
@@ -40,14 +41,35 @@ impl Display for NetworkErrorKind {
     }
 }
 
-pub(crate) struct AsyncNetwork;
+pub(crate) struct AsyncNetwork {
+    next_message_id: AtomicI64,
+}
 
 impl AsyncNetwork {
     pub(crate) fn new() -> Self {
-        AsyncNetwork
+        AsyncNetwork {
+            next_message_id: AtomicI64::new(1),
+        }
     }
 
     pub(crate) async fn send(
+        &self,
+        message: Message,
+        endpoint: &Endpoint,
+    ) -> Result<(), NetworkErrorKind> {
+        self.connect_and_write(message, endpoint).await
+    }
+
+    pub(crate) async fn send_with_message_id(
+        &self,
+        mut message: Message,
+        endpoint: &Endpoint,
+    ) -> Result<(), NetworkErrorKind> {
+        message.set_message_id(self.generate_next_message_id());
+        self.connect_and_write(message, endpoint).await
+    }
+
+    async fn connect_and_write(
         &self,
         message: Message,
         endpoint: &Endpoint,
@@ -56,15 +78,23 @@ impl AsyncNetwork {
         tcp_connection.write(&message).await?;
         Ok(())
     }
+
+    fn generate_next_message_id(&self) -> MessageId {
+        self.next_message_id.fetch_add(1, Ordering::AcqRel) //TODO: confirm ordering
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use tokio::net::TcpListener;
+    use tokio::task::JoinHandle;
 
     use crate::id::Id;
+    use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
-    use crate::net::message::Message;
+    use crate::net::message::{Message, MessageId};
     use crate::net::node::Node;
     use crate::net::AsyncNetwork;
 
@@ -87,5 +117,53 @@ mod tests {
             )
             .await;
         assert!(network_send_result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn send_message_with_id_successfully() {
+        let listener_result = TcpListener::bind("localhost:2334").await;
+        assert!(listener_result.is_ok());
+
+        let handle = tokio::spawn(async move {
+            let tcp_listener = listener_result.unwrap();
+            let stream = tcp_listener.accept().await.unwrap();
+
+            let mut connection = AsyncTcpConnection::new(stream.0);
+            let message = connection.read().await.unwrap();
+
+            assert!(message.is_ping_type());
+            if let Message::Ping { message_id, .. } = message {
+                assert_eq!(Some(1), message_id);
+            }
+        });
+
+        let network_send_result = AsyncNetwork::new()
+            .send_with_message_id(
+                Message::ping_type(Node::new(Endpoint::new("localhost".to_string(), 5665))),
+                &Endpoint::new("localhost".to_string(), 2334),
+            )
+            .await;
+        assert!(network_send_result.is_ok());
+
+        handle.await.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn generate_message_id() {
+        let async_network = Arc::new(AsyncNetwork::new());
+        let handles: Vec<JoinHandle<MessageId>> = (1..100)
+            .map(|_| async_network.clone())
+            .map(|async_network| {
+                tokio::spawn(async move { async_network.generate_next_message_id() })
+            })
+            .collect();
+
+        let mut message_ids = Vec::new();
+        for handle in handles {
+            message_ids.push(handle.await.unwrap());
+        }
+        message_ids.sort();
+
+        assert_eq!((1..100).collect::<Vec<MessageId>>(), message_ids);
     }
 }
