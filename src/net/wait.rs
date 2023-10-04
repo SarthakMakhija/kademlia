@@ -1,6 +1,6 @@
 use std::any::Any;
 use std::error::Error;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
@@ -30,6 +30,10 @@ impl TimedCallback {
 
     fn on_response(&self, response: Result<Message, ResponseError>) {
         self.callback.on_response(response);
+    }
+
+    fn has_expired(&self, clock: &Box<dyn Clock>, expiry_after: &Duration) -> bool {
+        clock.duration_since(self.creation_time).gt(expiry_after)
     }
 
     #[cfg(test)]
@@ -92,9 +96,9 @@ impl WaitingList {
 }
 
 #[cfg(test)]
-mod tests {
+mod waiting_list_tests {
     use crate::net::message::Message;
-    use crate::net::wait::tests::setup::{TestCallback, TestError};
+    use crate::net::wait::waiting_list_tests::setup::{TestCallback, TestError};
     use crate::net::wait::WaitingList;
     use crate::time::SystemClock;
 
@@ -235,5 +239,69 @@ mod tests {
 
         let message = callback.get_message_at(0);
         assert!(message.is_none());
+    }
+}
+
+#[cfg(test)]
+mod timed_callback_tests {
+    use crate::net::wait::timed_callback_tests::setup::{FutureClock, NothingCallback};
+    use crate::net::wait::TimedCallback;
+    use crate::time::{Clock, SystemClock};
+    use std::time::Duration;
+
+    mod setup {
+        use std::any::Any;
+        use std::ops::Add;
+        use std::time::{Duration, SystemTime};
+
+        use crate::net::message::Message;
+        use crate::net::wait::{Callback, ResponseError};
+        use crate::time::Clock;
+
+        #[derive(Clone)]
+        pub struct FutureClock {
+            pub(crate) duration_to_add: Duration,
+        }
+
+        pub(crate) struct NothingCallback;
+
+        impl Clock for FutureClock {
+            fn now(&self) -> SystemTime {
+                SystemTime::now().add(self.duration_to_add)
+            }
+        }
+
+        impl Callback for NothingCallback {
+            fn on_response(&self, _response: Result<Message, ResponseError>) {}
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+    }
+
+    #[test]
+    fn has_expired() {
+        let timed_callback =
+            TimedCallback::new(Box::new(NothingCallback), SystemClock::new().now());
+
+        let clock: Box<dyn Clock> = Box::new(FutureClock {
+            duration_to_add: Duration::from_secs(5),
+        });
+
+        assert!(timed_callback.has_expired(&clock, &Duration::from_secs(2)));
+    }
+
+    #[test]
+    fn has_not_expired() {
+        let timed_callback =
+            TimedCallback::new(Box::new(NothingCallback), SystemClock::new().now());
+
+        let clock: Box<dyn Clock> = SystemClock::new();
+
+        assert_eq!(
+            false,
+            timed_callback.has_expired(&clock, &Duration::from_secs(2))
+        );
     }
 }
