@@ -3,7 +3,7 @@ use std::io::Error;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
 
-use crate::net::callback::{Callback, ResponseAwaitingCallback};
+use crate::net::callback::Callback;
 use crate::net::connection::AsyncTcpConnection;
 use crate::net::endpoint::Endpoint;
 use crate::net::message::{Message, MessageId};

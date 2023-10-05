@@ -8,33 +8,44 @@ use crate::routing::neighbors::ClosestNeighbors;
 
 mod neighbors;
 
+const MAX_BUCKET_CAPACITY: usize = 10;
+
 pub(crate) struct Table {
     buckets: RefCell<Vec<Vec<Node>>>,
     node_id: NodeId,
+    max_bucket_capacity: usize,
 }
 
 impl Table {
     pub(crate) fn new(node_id: NodeId) -> Self {
+        Self::new_with_bucket_capacity(node_id, MAX_BUCKET_CAPACITY)
+    }
+
+    pub(crate) fn new_with_bucket_capacity(node_id: NodeId, bucket_capacity: usize) -> Self {
         let mut buckets = Vec::with_capacity(node_id.id_length_in_bits);
         (0..node_id.id_length_in_bits).for_each(|_| buckets.push(Vec::new()));
 
         Table {
             buckets: RefCell::new(buckets),
             node_id,
+            max_bucket_capacity: bucket_capacity,
         }
     }
 
-    pub(crate) fn add(&self, node: Node) -> bool {
+    pub(crate) fn add(&self, node: Node) -> (usize, bool) {
         let (bucket_index, contains) = self.contains(&node);
         if !contains {
-            info!(
-                "adding node with id {:?} to the bucket with index {}",
-                node.id, bucket_index
-            );
-            self.buckets.borrow_mut()[bucket_index].push(node);
-            return true;
+            let nodes = &mut self.buckets.borrow_mut()[bucket_index];
+            if nodes.len() < self.max_bucket_capacity {
+                info!(
+                    "adding node with id {:?} to the bucket with index {}",
+                    node.id, bucket_index
+                );
+                nodes.push(node);
+                return (bucket_index, true);
+            }
         }
-        return false;
+        return (bucket_index, false);
     }
 
     fn remove(&self, node: &Node) -> bool {
@@ -129,7 +140,8 @@ mod tests {
         let id: u16 = 255;
 
         let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))))
+        let (_, added) = routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)));
+        assert!(added);
     }
 
     #[test]
@@ -137,11 +149,29 @@ mod tests {
         let id: u16 = 255;
 
         let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
-        assert_eq!(
-            false,
-            routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)))
-        )
+        let (_, added) = routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)));
+        assert!(added);
+
+        let (_, added) = routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)));
+        assert_eq!(false, added);
+    }
+
+    #[test]
+    fn do_not_add_a_node_to_routing_table_if_the_bucket_capacity_is_full() {
+        let id: u16 = 255;
+
+        let routing_table = Table::new_with_bucket_capacity(Id::new(id.to_be_bytes().to_vec()), 1);
+        let (_, added) = routing_table.add(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 2379),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        ));
+        assert!(added);
+
+        let (_, added) = routing_table.add(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 8989),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        ));
+        assert_eq!(false, added);
     }
 
     #[test]
@@ -149,7 +179,8 @@ mod tests {
         let id: u16 = 255;
 
         let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
+        let (_, added) = routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)));
+        assert!(added);
 
         let node = &Node::new(Endpoint::new("localhost".to_string(), 2379));
         let deleted = routing_table.remove(node);
@@ -174,7 +205,8 @@ mod tests {
         let id: u16 = 511;
 
         let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379))));
+        let (_, added) = routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)));
+        assert!(added);
 
         let node = &Node::new(Endpoint::new("localhost".to_string(), 2379));
         let (_, contains) = routing_table.contains(node);
@@ -194,14 +226,17 @@ mod tests {
     #[test]
     fn single_closest_neighbor_1() {
         let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new_with_id(
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
-        )));
-        assert!(routing_table.add(Node::new_with_id(
+        ));
+        assert!(added);
+
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2380),
             Id::new(255u16.to_be_bytes().to_vec()),
-        )));
+        ));
+        assert!(added);
 
         let closest_neighbors =
             routing_table.closest_neighbors(&Id::new(255u16.to_be_bytes().to_vec()), 1);
@@ -214,14 +249,17 @@ mod tests {
     #[test]
     fn single_closest_neighbor_2() {
         let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new_with_id(
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
-        )));
-        assert!(routing_table.add(Node::new_with_id(
+        ));
+        assert!(added);
+
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2380),
             Id::new(255u16.to_be_bytes().to_vec()),
-        )));
+        ));
+        assert!(added);
 
         let closest_neighbors =
             routing_table.closest_neighbors(&Id::new(510u16.to_be_bytes().to_vec()), 1);
@@ -234,14 +272,17 @@ mod tests {
     #[test]
     fn single_closest_neighbor_3() {
         let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new_with_id(
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
-        )));
-        assert!(routing_table.add(Node::new_with_id(
+        ));
+        assert!(added);
+
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2380),
             Id::new(255u16.to_be_bytes().to_vec()),
-        )));
+        ));
+        assert!(added);
 
         let closest_neighbors =
             routing_table.closest_neighbors(&Id::new(247u16.to_be_bytes().to_vec()), 1);
@@ -254,14 +295,17 @@ mod tests {
     #[test]
     fn single_closest_neighbor_4() {
         let routing_table = Table::new(Id::new(511u16.to_be_bytes().to_vec()));
-        assert!(routing_table.add(Node::new_with_id(
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2379),
             Id::new(511u16.to_be_bytes().to_vec()),
-        )));
-        assert!(routing_table.add(Node::new_with_id(
+        ));
+        assert!(added);
+
+        let (_, added) = routing_table.add(Node::new_with_id(
             Endpoint::new("localhost".to_string(), 2380),
             Id::new(509u16.to_be_bytes().to_vec()),
-        )));
+        ));
+        assert!(added);
 
         let closest_neighbors =
             routing_table.closest_neighbors(&Id::new(255u16.to_be_bytes().to_vec()), 1);
