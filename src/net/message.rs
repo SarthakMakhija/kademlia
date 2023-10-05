@@ -162,9 +162,7 @@ impl Message {
             FindValue { message_id, .. }
             | Message::FindNode { message_id, .. }
             | Ping { message_id, .. } => *message_id = Some(id),
-            Message::Store { .. } => {}
-            SendPingReply { .. } => {}
-            Message::ShutDown => {}
+            _ => {}
         }
     }
 
