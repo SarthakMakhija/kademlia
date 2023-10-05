@@ -146,7 +146,7 @@ mod tests {
 
     #[tokio::test]
     async fn send_message_with_id_successfully() {
-        let listener_result = TcpListener::bind("localhost:2334").await;
+        let listener_result = TcpListener::bind("localhost:8861").await;
         assert!(listener_result.is_ok());
 
         let handle = tokio::spawn(async move {
@@ -165,7 +165,7 @@ mod tests {
         let network_send_result = AsyncNetwork::new(waiting_list())
             .send_with_message_id(
                 Message::ping_type(Node::new(Endpoint::new("localhost".to_string(), 5665))),
-                &Endpoint::new("localhost".to_string(), 2334),
+                &Endpoint::new("localhost".to_string(), 8861),
             )
             .await;
 
