@@ -35,7 +35,7 @@ impl MessageExecutor {
         let executor = MessageExecutor {
             sender,
             routing_table: Arc::new(Table::new(current_node.node_id())),
-            async_network: Arc::new(AsyncNetwork::new(waiting_list.clone())),
+            async_network: AsyncNetwork::new(waiting_list.clone()),
         };
         executor.start(current_node, receiver, store);
         executor

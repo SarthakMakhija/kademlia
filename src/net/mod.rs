@@ -51,11 +51,11 @@ pub(crate) struct AsyncNetwork {
 }
 
 impl AsyncNetwork {
-    pub(crate) fn new(waiting_list: Arc<WaitingList>) -> Self {
-        AsyncNetwork {
+    pub(crate) fn new(waiting_list: Arc<WaitingList>) -> Arc<Self> {
+        Arc::new(AsyncNetwork {
             waiting_list,
             next_message_id: AtomicI64::new(1),
-        }
+        })
     }
 
     pub(crate) async fn send(
@@ -140,6 +140,7 @@ mod tests {
                 &Endpoint::new("localhost".to_string(), 8989),
             )
             .await;
+
         assert!(network_send_result.is_ok());
     }
 
@@ -167,8 +168,8 @@ mod tests {
                 &Endpoint::new("localhost".to_string(), 2334),
             )
             .await;
-        assert!(network_send_result.is_ok());
 
+        assert!(network_send_result.is_ok());
         handle.await.unwrap();
     }
 
@@ -191,7 +192,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn generate_message_id() {
-        let async_network = Arc::new(AsyncNetwork::new(waiting_list()));
+        let async_network = AsyncNetwork::new(waiting_list());
         let handles: Vec<JoinHandle<MessageId>> = (1..100)
             .map(|_| async_network.clone())
             .map(|async_network| {
