@@ -2,13 +2,13 @@
 2. Add node to the routing table in store message - done
 8. send PingReply from the receiving node to the source node - done
 
-3. WaitingList: By 8th Oct
+3. WaitingList: By 8th Oct - done
     - draft - done
     - cleaner - done
     - Message Id generation - done
-    - AsyncNetwork to own WaitingList
-    - AsyncNetwork to support method which can put an entry in waiting list
-    - decide if this needs arc
+    - AsyncNetwork to own WaitingList - done
+    - AsyncNetwork to support method which can put an entry in waiting list - done
+    - decide if this needs arc - done
 0. Add node as RPC (?): By 8th Oct
 1. Methods for clone and use those clone methods: By 8th Oct
 ------

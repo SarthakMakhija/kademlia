@@ -1,9 +1,9 @@
-use crate::net::callback::ResponseAwaitingCallback;
 use std::fmt::{Display, Formatter};
 use std::io::Error;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 
+use crate::net::callback::{Callback, ResponseAwaitingCallback};
 use crate::net::connection::AsyncTcpConnection;
 use crate::net::endpoint::Endpoint;
 use crate::net::message::{Message, MessageId};
@@ -79,13 +79,13 @@ impl AsyncNetwork {
         &self,
         mut message: Message,
         endpoint: &Endpoint,
+        callback: Arc<dyn Callback>,
     ) -> Result<(), NetworkErrorKind> {
         let message_id = self.generate_next_message_id();
         message.set_message_id(message_id);
 
         let send_result = self.connect_and_write(message, endpoint).await;
-        self.waiting_list
-            .add(message_id, ResponseAwaitingCallback::new());
+        self.waiting_list.add(message_id, callback);
 
         send_result
     }
@@ -114,12 +114,13 @@ mod tests {
     use tokio::task::JoinHandle;
 
     use crate::id::Id;
+    use crate::net::AsyncNetwork;
+    use crate::net::callback::ResponseAwaitingCallback;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::{Message, MessageId};
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
-    use crate::net::AsyncNetwork;
     use crate::time::SystemClock;
 
     #[tokio::test]
@@ -183,6 +184,7 @@ mod tests {
             .send_with_message_id_expect_reply(
                 Message::ping_type(Node::new(Endpoint::new("localhost".to_string(), 5665))),
                 &Endpoint::new("localhost".to_string(), 2334),
+                ResponseAwaitingCallback::new()
             )
             .await;
 
