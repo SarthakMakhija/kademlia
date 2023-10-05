@@ -24,6 +24,7 @@ impl ChanneledMessage {
 pub(crate) enum MessageStatus {
     StoreDone,
     PingDone,
+    AddNodeDone,
     ShutdownDone,
 }
 

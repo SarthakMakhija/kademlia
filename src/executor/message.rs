@@ -1,22 +1,20 @@
 use std::sync::Arc;
 
 use log::{error, info, warn};
-use tokio::sync::mpsc::error::SendError;
-use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::error::SendError;
 
 use crate::executor::message_action::{MessageAction, PingMessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
+use crate::net::AsyncNetwork;
 use crate::net::message::Message;
 use crate::net::node::Node;
 use crate::net::wait::WaitingList;
-use crate::net::AsyncNetwork;
-use crate::routing::Table;
 use crate::store::Store;
 
 pub(crate) struct MessageExecutor {
     sender: Sender<ChanneledMessage>,
-    routing_table: Arc<Table>,
     async_network: Arc<AsyncNetwork>,
 }
 
@@ -31,7 +29,6 @@ impl MessageExecutor {
 
         let executor = MessageExecutor {
             sender,
-            routing_table: Arc::new(Table::new(current_node.node_id())),
             async_network: AsyncNetwork::new(waiting_list.clone()),
         };
         executor.start(current_node, receiver, store);
@@ -59,7 +56,6 @@ impl MessageExecutor {
         mut receiver: Receiver<ChanneledMessage>,
         store: Arc<dyn Store>,
     ) {
-        let routing_table = self.routing_table.clone();
         let async_network = self.async_network.clone();
 
         tokio::spawn(async move {
@@ -68,7 +64,7 @@ impl MessageExecutor {
                     Some(channeled_message) => match channeled_message.message {
                         Message::Store { .. } => {
                             info!("working on store message in MessageExecutor");
-                            let action = StoreMessageAction::new(&store, &routing_table);
+                            let action = StoreMessageAction::new(&store);
                             action.act_on(channeled_message.message.clone());
 
                             let _ = channeled_message.send_response(MessageStatus::StoreDone);
@@ -104,8 +100,8 @@ impl MessageExecutor {
 mod store_message_executor {
     use std::sync::Arc;
     use std::time::Duration;
-    use crate::executor::message::MessageExecutor;
 
+    use crate::executor::message::MessageExecutor;
     use crate::id::Id;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
@@ -190,36 +186,6 @@ mod store_message_executor {
             "distributed hash table",
             String::from_utf8(value.unwrap()).unwrap()
         );
-    }
-
-    #[tokio::test]
-    async fn submit_store_message_with_addition_of_node_in_routing_table() {
-        let store = Arc::new(InMemoryStore::new());
-        let node = Node::new_with_id(
-            Endpoint::new("localhost".to_string(), 9090),
-            Id::new(255u16.to_be_bytes().to_vec()),
-        );
-        let executor = MessageExecutor::new(node, store, waiting_list());
-
-        let submit_result = executor
-            .submit(Message::store_type(
-                "kademlia".as_bytes().to_vec(),
-                "distributed hash table".as_bytes().to_vec(),
-                Node::new(Endpoint::new("localhost".to_string(), 1909)),
-            ))
-            .await;
-        assert!(submit_result.is_ok());
-
-        let message_response = submit_result.unwrap();
-        let message_response_result = message_response.wait_until_response_is_received().await;
-        assert!(message_response_result.is_ok());
-
-        let message_status = message_response_result.unwrap();
-        assert!(message_status.is_store_done());
-
-        let node = &Node::new(Endpoint::new("localhost".to_string(), 1909));
-        let (_, contains) = executor.routing_table.contains(node);
-        assert!(contains);
     }
 
     #[tokio::test]
@@ -321,8 +287,8 @@ mod ping_message_executor {
     use std::time::Duration;
 
     use tokio::net::TcpListener;
-    use crate::executor::message::MessageExecutor;
 
+    use crate::executor::message::MessageExecutor;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;

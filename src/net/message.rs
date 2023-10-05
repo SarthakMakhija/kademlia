@@ -37,6 +37,9 @@ pub(crate) enum Message {
         value: Vec<u8>,
         source: Source,
     },
+    AddNode {
+        source: Source,
+    },
     FindValue {
         message_id: Option<MessageId>,
         key: Vec<u8>,
@@ -64,6 +67,15 @@ impl Message {
             key,
             key_id,
             value,
+            source: Source {
+                node_endpoint: source.endpoint,
+                node_id: source.id,
+            },
+        }
+    }
+
+    pub(crate) fn add_node_type(source: Node) -> Self {
+        Message::AddNode {
             source: Source {
                 node_endpoint: source.endpoint,
                 node_id: source.id,
