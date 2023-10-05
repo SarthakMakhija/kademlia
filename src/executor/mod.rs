@@ -250,10 +250,10 @@ mod store_message_executor {
     }
 
     fn waiting_list() -> Arc<WaitingList> {
-        Arc::new(WaitingList::new(
+        WaitingList::new(
             WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
             SystemClock::new(),
-        ))
+        )
     }
 }
 
@@ -307,9 +307,9 @@ mod ping_message_executor {
     }
 
     fn waiting_list() -> Arc<WaitingList> {
-        Arc::new(WaitingList::new(
+        WaitingList::new(
             WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
             SystemClock::new(),
-        ))
+        )
     }
 }

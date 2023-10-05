@@ -84,7 +84,10 @@ pub(crate) struct WaitingList {
 }
 
 impl WaitingList {
-    pub(crate) fn new(waiting_list_options: WaitingListOptions, clock: Box<dyn Clock>) -> Self {
+    pub(crate) fn new(
+        waiting_list_options: WaitingListOptions,
+        clock: Box<dyn Clock>,
+    ) -> Arc<Self> {
         let pending_responses = Arc::new(DashMap::new());
         let cleaner = ExpiredPendingResponsesCleaner::new(
             waiting_list_options,
@@ -97,7 +100,7 @@ impl WaitingList {
             expired_pending_responses_cleaner: cleaner,
             clock,
         };
-        waiting_list
+        Arc::new(waiting_list)
     }
 
     pub(crate) fn add(&self, message_id: MessageId, callback: Arc<dyn Callback>) {
