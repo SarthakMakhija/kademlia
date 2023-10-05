@@ -158,6 +158,7 @@ mod store_message_action_tests {
 #[cfg(test)]
 mod ping_message_action_tests {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use tokio::net::TcpListener;
 
@@ -166,7 +167,9 @@ mod ping_message_action_tests {
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::net::AsyncNetwork;
+    use crate::time::SystemClock;
 
     #[tokio::test]
     async fn send_a_ping_reply() {
@@ -186,7 +189,7 @@ mod ping_message_action_tests {
             }
         });
 
-        let async_network = Arc::new(AsyncNetwork::new());
+        let async_network = Arc::new(AsyncNetwork::new(waiting_list()));
         let current_node = Node::new(Endpoint::new("localhost".to_string(), 7878));
         let message_action = PingMessageAction::new(&current_node, &async_network);
 
@@ -194,5 +197,12 @@ mod ping_message_action_tests {
         message_action.act_on(Message::ping_type(node_sending_ping));
 
         handle.await.unwrap();
+    }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        Arc::new(WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        ))
     }
 }

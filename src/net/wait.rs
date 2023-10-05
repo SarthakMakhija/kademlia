@@ -105,6 +105,10 @@ impl WaitingList {
             .insert(message_id, TimedCallback::new(callback, self.clock.now()));
     }
 
+    pub(crate) fn contains(&self, message_id: &MessageId) -> bool {
+        self.pending_responses.contains_key(message_id)
+    }
+
     pub(crate) fn handle_response(
         &self,
         message_id: MessageId,

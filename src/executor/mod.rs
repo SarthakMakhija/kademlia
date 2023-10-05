@@ -9,6 +9,7 @@ use crate::executor::message_action::{MessageAction, PingMessageAction, StoreMes
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::net::message::Message;
 use crate::net::node::Node;
+use crate::net::wait::WaitingList;
 use crate::net::AsyncNetwork;
 use crate::routing::Table;
 use crate::store::Store;
@@ -23,14 +24,18 @@ pub(crate) struct MessageExecutor {
 }
 
 impl MessageExecutor {
-    pub(crate) fn new(current_node: Node, store: Arc<dyn Store>) -> Self {
+    pub(crate) fn new(
+        current_node: Node,
+        store: Arc<dyn Store>,
+        waiting_list: Arc<WaitingList>,
+    ) -> Self {
         //TODO: make 100 configurable
         let (sender, receiver) = mpsc::channel(100);
 
         let executor = MessageExecutor {
             sender,
             routing_table: Arc::new(Table::new(current_node.node_id())),
-            async_network: Arc::new(AsyncNetwork::new()),
+            async_network: Arc::new(AsyncNetwork::new(waiting_list.clone())),
         };
         executor.start(current_node, receiver, store);
         executor
@@ -99,13 +104,16 @@ impl MessageExecutor {
 #[cfg(test)]
 mod store_message_executor {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use crate::executor::MessageExecutor;
     use crate::id::Id;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::store::{InMemoryStore, Store};
+    use crate::time::SystemClock;
 
     #[tokio::test]
     async fn submit_store_message_successfully() {
@@ -114,7 +122,7 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone());
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
         let submit_result = executor
             .submit(Message::store_type(
                 "kademlia".as_bytes().to_vec(),
@@ -128,12 +136,11 @@ mod store_message_executor {
     #[tokio::test]
     async fn submit_store_message_with_successful_message_store() {
         let store = Arc::new(InMemoryStore::new());
-
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone());
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -159,7 +166,7 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone());
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -193,7 +200,7 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store);
+        let executor = MessageExecutor::new(node, store, waiting_list());
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -223,7 +230,7 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone());
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
 
         let submit_result = executor.shutdown().await;
         assert!(submit_result.is_ok());
@@ -241,11 +248,19 @@ mod store_message_executor {
             .await;
         assert!(submit_result.is_err());
     }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        Arc::new(WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod ping_message_executor {
     use std::sync::Arc;
+    use std::time::Duration;
 
     use tokio::net::TcpListener;
 
@@ -254,7 +269,9 @@ mod ping_message_executor {
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::store::InMemoryStore;
+    use crate::time::SystemClock;
 
     #[tokio::test]
     async fn submit_ping_message_with_successful_reply() {
@@ -276,7 +293,7 @@ mod ping_message_executor {
 
         let store = Arc::new(InMemoryStore::new());
         let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
-        let executor = MessageExecutor::new(node, store.clone());
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 7565));
         let submit_result = executor.submit(Message::ping_type(node_sending_ping)).await;
@@ -287,5 +304,12 @@ mod ping_message_executor {
         assert!(message_response_result.is_ok());
 
         handle.await.unwrap();
+    }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        Arc::new(WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        ))
     }
 }
