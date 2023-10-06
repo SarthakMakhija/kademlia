@@ -1,10 +1,12 @@
-use async_trait::async_trait;
 use std::sync::Arc;
 
+use async_trait::async_trait;
+
+use crate::net::{AsyncNetwork, NetworkErrorKind};
+use crate::net::callback::{ResponseAwaitingCallback, ResponseStatus};
 use crate::net::message::Message;
 use crate::net::message::Message::AddNode;
 use crate::net::node::Node;
-use crate::net::AsyncNetwork;
 use crate::routing::Table;
 use crate::store::{Key, Store};
 
@@ -70,12 +72,32 @@ impl MessageAction for PingMessageAction {
 }
 
 pub(crate) struct AddNodeAction {
+    current_node: Node,
     routing_table: Arc<Table>,
+    async_network: Arc<AsyncNetwork>,
 }
 
 impl AddNodeAction {
-    pub(crate) fn new(routing_table: Arc<Table>) -> Self {
-        AddNodeAction { routing_table }
+    pub(crate) fn new(
+        current_node: Node,
+        routing_table: Arc<Table>,
+        async_network: Arc<AsyncNetwork>,
+    ) -> Self {
+        AddNodeAction {
+            current_node,
+            routing_table,
+            async_network,
+        }
+    }
+
+    async fn send_ping_to(&self, node: &Node, callback: &Arc<ResponseAwaitingCallback>) -> Result<(), NetworkErrorKind> {
+        self.async_network
+            .send_with_message_id_expect_reply(
+                Message::ping_type(self.current_node.clone()),
+                &node.endpoint,
+                callback.clone()
+            )
+            .await
     }
 }
 
@@ -83,7 +105,30 @@ impl AddNodeAction {
 impl MessageAction for AddNodeAction {
     async fn act_on(&self, message: Message) {
         if let AddNode { source } = message {
-            self.routing_table.add(source.to_node());
+            let (bucket_index, added) = self.routing_table.add(source.clone().to_node());
+            if added {
+                return;
+            }
+            //TODO: add a test to simulate ping reply from the node
+            if let Some(node) = self.routing_table.first_node_in(bucket_index) {
+                let callback = ResponseAwaitingCallback::new();
+                match self.send_ping_to(&node, &callback).await {
+                    Ok(_) => {
+                        let response_status = callback.handle().await;
+                        if let ResponseStatus::Err = response_status {
+                            self.routing_table.remove_and_add(
+                                bucket_index,
+                                &node,
+                                source.to_node(),
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        self.routing_table
+                            .remove_and_add(bucket_index, &node, source.to_node())
+                    }
+                }
+            }
         }
     }
 }
@@ -132,12 +177,12 @@ mod ping_message_action_tests {
     use tokio::net::TcpListener;
 
     use crate::executor::message_action::{MessageAction, PingMessageAction};
+    use crate::net::AsyncNetwork;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
-    use crate::net::AsyncNetwork;
     use crate::time::SystemClock;
 
     #[tokio::test]
@@ -181,33 +226,149 @@ mod ping_message_action_tests {
 #[cfg(test)]
 mod add_node_action_tests {
     use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::net::TcpListener;
 
     use crate::executor::message_action::{AddNodeAction, MessageAction};
     use crate::id::Id;
+    use crate::net::AsyncNetwork;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::routing::Table;
+    use crate::time::SystemClock;
 
     #[tokio::test]
-    async fn act_on_store_message_and_add_the_node_in_routing_table() {
+    async fn act_on_add_node_message_and_add_the_node_in_routing_table() {
+        let async_network = AsyncNetwork::new(waiting_list());
         let routing_table: Arc<Table> =
             Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
 
-        let message_action = AddNodeAction::new(routing_table.clone());
+        let message_action = AddNodeAction::new(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 1909),
+                Id::new(255u16.to_be_bytes().to_vec()),
+            ),
+            routing_table.clone(),
+            async_network
+        );
 
         let message = Message::add_node_type(Node::new_with_id(
-            Endpoint::new("localhost".to_string(), 1909),
+            Endpoint::new("localhost".to_string(), 8434),
             Id::new(511u16.to_be_bytes().to_vec()),
         ));
         message_action.act_on(message).await;
 
         let node = Node::new_with_id(
-            Endpoint::new("localhost".to_string(), 1909),
+            Endpoint::new("localhost".to_string(), 8434),
             Id::new(511u16.to_be_bytes().to_vec()),
         );
 
         let (_, contains) = routing_table.contains(&node);
         assert!(contains);
+    }
+
+    #[tokio::test]
+    async fn act_on_add_node_message_given_the_bucket_capacity_is_full() {
+        let async_network = AsyncNetwork::new(waiting_list());
+        let routing_table: Arc<Table> =
+            Arc::new(Table::new_with_bucket_capacity(Id::new(255u16.to_be_bytes().to_vec()), 1));
+
+        let message_action = AddNodeAction::new(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 1909),
+                Id::new(255u16.to_be_bytes().to_vec()),
+            ),
+            routing_table.clone(),
+            async_network
+        );
+
+        let message = Message::add_node_type(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 8434),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        ));
+        message_action.act_on(message).await;
+
+        let message = Message::add_node_type(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 7878),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        ));
+        message_action.act_on(message).await;
+
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 7878),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        );
+
+        let (_, contains) = routing_table.contains(&node);
+        assert!(contains);
+
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 8434),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        );
+
+        let (_, contains) = routing_table.contains(&node);
+        assert_eq!(false, contains);
+    }
+
+    #[tokio::test]
+    async fn act_on_add_node_message_given_the_bucket_capacity_is_full_and_the_node_to_ping_does_not_reply() {
+        let listener_result = TcpListener::bind("localhost:8436").await;
+        assert!(listener_result.is_ok());
+
+        let waiting_list = WaitingList::new(
+            WaitingListOptions::new(Duration::from_millis(120), Duration::from_millis(30)),
+            SystemClock::new(),
+        );
+
+        let async_network = AsyncNetwork::new(waiting_list);
+        let routing_table: Arc<Table> =
+            Arc::new(Table::new_with_bucket_capacity(Id::new(255u16.to_be_bytes().to_vec()), 1));
+
+        let message_action = AddNodeAction::new(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 1909),
+                Id::new(255u16.to_be_bytes().to_vec()),
+            ),
+            routing_table.clone(),
+            async_network
+        );
+
+        let message = Message::add_node_type(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 8436),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        ));
+        message_action.act_on(message).await;
+
+        let message = Message::add_node_type(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 7880),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        ));
+        message_action.act_on(message).await;
+
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 7880),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        );
+
+        let (_, contains) = routing_table.contains(&node);
+        assert!(contains);
+
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 8436),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        );
+
+        let (_, contains) = routing_table.contains(&node);
+        assert_eq!(false, contains);
+    }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        )
     }
 }

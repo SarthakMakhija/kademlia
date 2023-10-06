@@ -30,7 +30,7 @@ impl MessageExecutor {
 
         let executor = MessageExecutor {
             sender,
-            async_network: AsyncNetwork::new(waiting_list.clone()),
+            async_network: AsyncNetwork::new(waiting_list),
         };
         executor.start(current_node, receiver, store);
         executor
