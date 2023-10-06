@@ -3,6 +3,7 @@ use std::sync::RwLock;
 use log::info;
 
 use crate::id::Id;
+use crate::net::endpoint::Endpoint;
 use crate::net::node::{Node, NodeId};
 use crate::routing::neighbors::ClosestNeighbors;
 
@@ -74,6 +75,12 @@ impl Table {
         let nodes = self.buckets[bucket_index].read().unwrap();
 
         (bucket_index, nodes.contains(node))
+    }
+
+    pub(crate) fn first_node_address_in(&self, bucket_index: usize) -> Option<Endpoint> {
+        assert!(bucket_index < self.node_id.id_length_in_bits);
+        let nodes = self.buckets[bucket_index].read().unwrap();
+        nodes.get(0).map(|node| node.endpoint.clone())
     }
 
     fn closest_neighbors(&self, id: &Id, number_of_neighbors: usize) -> ClosestNeighbors {
@@ -219,6 +226,37 @@ mod tests {
         let node = &Node::new(Endpoint::new("unknown".to_string(), 1010));
         let (_, contains) = routing_table.contains(node);
         assert_eq!(false, contains);
+    }
+
+    #[test]
+    fn first_node_address() {
+        let id: u16 = 511;
+
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+        let (bucket_index, added) =
+            routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)));
+        assert!(added);
+
+        let endpoint = routing_table.first_node_address_in(bucket_index).unwrap();
+        assert_eq!("localhost:2379", endpoint.address());
+    }
+
+    #[test]
+    fn first_node_address_in_an_empty_bucket() {
+        let id: u16 = 511;
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+
+        let endpoint = routing_table.first_node_address_in(0);
+        assert!(endpoint.is_none());
+    }
+
+    #[test]
+    #[should_panic]
+    fn first_node_address_with_invalid_bucket_index() {
+        let id: u16 = 511;
+        let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
+
+        routing_table.first_node_address_in(200);
     }
 
     #[test]
