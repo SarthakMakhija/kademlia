@@ -25,17 +25,14 @@ impl StoreMessageAction {
 
 impl MessageAction for StoreMessageAction {
     fn act_on(&self, message: Message) {
-        match message {
-            Message::Store {
-                key,
-                key_id,
-                value,
-                ..
-            } => {
-                self.store
-                    .put_or_update(Key::new_with_id(key, key_id), value);
-            }
-            _ => {}
+        if let Message::Store {
+            key,
+            key_id,
+            value,
+            ..
+        } = message {
+            self.store
+                .put_or_update(Key::new_with_id(key, key_id), value);
         }
     }
 }
@@ -59,21 +56,18 @@ impl PingMessageAction {
 
 impl MessageAction for PingMessageAction {
     fn act_on(&self, message: Message) {
-        match message {
-            Message::Ping { message_id, from } => {
-                let current_node = self.current_node.clone();
-                let async_network = self.async_network.clone();
+        if let Message::Ping { message_id, from } = message {
+            let current_node = self.current_node.clone();
+            let async_network = self.async_network.clone();
 
-                tokio::spawn(async move {
-                    let _ = async_network
-                        .send(
-                            Message::ping_reply_type(current_node, message_id),
-                            from.endpoint(),
-                        )
-                        .await;
-                });
-            }
-            _ => {}
+            tokio::spawn(async move {
+                let _ = async_network
+                    .send(
+                        Message::ping_reply_type(current_node, message_id),
+                        from.endpoint(),
+                    )
+                    .await;
+            });
         }
     }
 }
@@ -92,11 +86,8 @@ impl AddNodeAction {
 
 impl MessageAction for AddNodeAction {
     fn act_on(&self, message: Message) {
-        match message {
-            AddNode { source, } => {
-                self.routing_table.add(source.to_node());
-            }
-            _ => {}
+        if let AddNode { source, } = message {
+            self.routing_table.add(source.to_node());
         }
     }
 }
