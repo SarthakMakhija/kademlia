@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use std::sync::{RwLock, RwLockWriteGuard};
 
 use log::info;
 
@@ -36,37 +36,9 @@ impl Table {
         let (bucket_index, contains) = self.contains(&node);
         if !contains {
             let nodes = &mut self.buckets[bucket_index].write().unwrap();
-            if nodes.len() < self.max_bucket_capacity {
-                info!(
-                    "adding node with id {:?} to the bucket with index {}",
-                    node.id, bucket_index
-                );
-                nodes.push(node);
-                return (bucket_index, true);
-            }
+            return self.add_internal(node, bucket_index, nodes);
         }
         return (bucket_index, false);
-    }
-
-    fn remove(&self, node: &Node) -> bool {
-        let (bucket_index, contains) = self.contains(node);
-        if contains {
-            let mut nodes = self.buckets[bucket_index].write().unwrap();
-            let node_index = nodes
-                .iter()
-                .position(|existing_node| existing_node.eq(node));
-
-            if let Some(index) = node_index {
-                info!(
-                    "removing node with id {:?} from the bucket with index {}",
-                    node.id, bucket_index
-                );
-                nodes.remove(index);
-                return true;
-            }
-            return false;
-        }
-        return false;
     }
 
     pub(crate) fn contains(&self, node: &Node) -> (usize, bool) {
@@ -80,6 +52,52 @@ impl Table {
         assert!(bucket_index < self.node_id.id_length_in_bits);
         let nodes = self.buckets[bucket_index].read().unwrap();
         nodes.get(0).map(|node| node.clone())
+    }
+
+    fn add_internal(
+        &self,
+        node: Node,
+        bucket_index: usize,
+        nodes: &mut RwLockWriteGuard<Vec<Node>>,
+    ) -> (usize, bool) {
+        if nodes.len() < self.max_bucket_capacity {
+            info!(
+                "adding node with id {:?} to the bucket with index {}",
+                node.id, bucket_index
+            );
+            nodes.push(node);
+            return (bucket_index, true);
+        }
+        return (bucket_index, false);
+    }
+
+    fn remove(&self, node: &Node) -> bool {
+        let (bucket_index, contains) = self.contains(node);
+        if contains {
+            let mut nodes = self.buckets[bucket_index].write().unwrap();
+            return Self::remove_internal(node, bucket_index, &mut nodes);
+        }
+        return false;
+    }
+
+    fn remove_internal(
+        node: &Node,
+        bucket_index: usize,
+        nodes: &mut RwLockWriteGuard<Vec<Node>>,
+    ) -> bool {
+        let node_index = nodes
+            .iter()
+            .position(|existing_node| existing_node.eq(node));
+
+        if let Some(index) = node_index {
+            info!(
+                "removing node with id {:?} from the bucket with index {}",
+                node.id, bucket_index
+            );
+            nodes.remove(index);
+            return true;
+        }
+        return false;
     }
 
     fn closest_neighbors(&self, id: &Id, number_of_neighbors: usize) -> ClosestNeighbors {
