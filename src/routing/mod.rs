@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::sync::RwLock;
 
 use log::info;
 
@@ -11,7 +11,7 @@ mod neighbors;
 const MAX_BUCKET_CAPACITY: usize = 10;
 
 pub(crate) struct Table {
-    buckets: RefCell<Vec<Vec<Node>>>,
+    buckets: Vec<RwLock<Vec<Node>>>,
     node_id: NodeId,
     max_bucket_capacity: usize,
 }
@@ -23,10 +23,10 @@ impl Table {
 
     pub(crate) fn new_with_bucket_capacity(node_id: NodeId, bucket_capacity: usize) -> Self {
         let mut buckets = Vec::with_capacity(node_id.id_length_in_bits);
-        (0..node_id.id_length_in_bits).for_each(|_| buckets.push(Vec::new()));
+        (0..node_id.id_length_in_bits).for_each(|_| buckets.push(RwLock::new(Vec::new())));
 
         Table {
-            buckets: RefCell::new(buckets),
+            buckets,
             node_id,
             max_bucket_capacity: bucket_capacity,
         }
@@ -35,7 +35,7 @@ impl Table {
     pub(crate) fn add(&self, node: Node) -> (usize, bool) {
         let (bucket_index, contains) = self.contains(&node);
         if !contains {
-            let nodes = &mut self.buckets.borrow_mut()[bucket_index];
+            let nodes = &mut self.buckets[bucket_index].write().unwrap();
             if nodes.len() < self.max_bucket_capacity {
                 info!(
                     "adding node with id {:?} to the bucket with index {}",
@@ -51,7 +51,8 @@ impl Table {
     fn remove(&self, node: &Node) -> bool {
         let (bucket_index, contains) = self.contains(node);
         if contains {
-            let node_index = self.buckets.borrow_mut()[bucket_index]
+            let mut nodes = self.buckets[bucket_index].write().unwrap();
+            let node_index = nodes
                 .iter()
                 .position(|existing_node| existing_node.eq(node));
 
@@ -60,7 +61,7 @@ impl Table {
                     "removing node with id {:?} from the bucket with index {}",
                     node.id, bucket_index
                 );
-                self.buckets.borrow_mut()[bucket_index].remove(index);
+                nodes.remove(index);
                 return true;
             }
             return false;
@@ -70,7 +71,7 @@ impl Table {
 
     pub(crate) fn contains(&self, node: &Node) -> (usize, bool) {
         let bucket_index = self.bucket_index(&node.id);
-        let nodes = &self.buckets.borrow()[bucket_index];
+        let nodes = self.buckets[bucket_index].read().unwrap();
 
         (bucket_index, nodes.contains(node))
     }
@@ -80,9 +81,9 @@ impl Table {
         let mut closest_neighbors = ClosestNeighbors::new(number_of_neighbors, id.clone());
 
         for bucket_index in self.all_adjacent_bucket_indices(bucket_index) {
-            if !self.buckets.borrow()[bucket_index].is_empty() {
-                let nodes = &self.buckets.borrow()[bucket_index];
-                if !closest_neighbors.add_missing(nodes) {
+            let nodes = self.buckets[bucket_index].read().unwrap();
+            if !nodes.is_empty() {
+                if !closest_neighbors.add_missing(&nodes) {
                     break;
                 }
             }
@@ -124,9 +125,6 @@ impl Table {
         bucket_index
     }
 }
-
-unsafe impl Send for Table {}
-unsafe impl Sync for Table {}
 
 #[cfg(test)]
 mod tests {
