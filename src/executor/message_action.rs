@@ -7,23 +7,23 @@ use crate::net::node::Node;
 use crate::routing::Table;
 use crate::store::{Key, Store};
 
-pub(crate) trait MessageAction {
+pub(crate) trait MessageAction: Send + Sync {
     fn act_on(&self, message: Message);
 }
 
-pub(crate) struct StoreMessageAction<'action> {
-    store: &'action Arc<dyn Store>,
+pub(crate) struct StoreMessageAction {
+    store: Arc<dyn Store>
 }
 
-impl<'action> StoreMessageAction<'action> {
-    pub(crate) fn new(store: &'action Arc<dyn Store>) -> Self {
+impl StoreMessageAction {
+    pub(crate) fn new(store:  Arc<dyn Store>) -> Self {
         StoreMessageAction {
             store,
         }
     }
 }
 
-impl<'action> MessageAction for StoreMessageAction<'action> {
+impl MessageAction for StoreMessageAction {
     fn act_on(&self, message: Message) {
         match message {
             Message::Store {
@@ -40,15 +40,15 @@ impl<'action> MessageAction for StoreMessageAction<'action> {
     }
 }
 
-pub(crate) struct PingMessageAction<'action> {
-    current_node: &'action Node,
-    async_network: &'action Arc<AsyncNetwork>,
+pub(crate) struct PingMessageAction {
+    current_node:  Node,
+    async_network:  Arc<AsyncNetwork>,
 }
 
-impl<'action> PingMessageAction<'action> {
+impl PingMessageAction {
     pub(crate) fn new(
-        current_node: &'action Node,
-        async_network: &'action Arc<AsyncNetwork>,
+        current_node:  Node,
+        async_network:  Arc<AsyncNetwork>,
     ) -> Self {
         PingMessageAction {
             current_node,
@@ -57,7 +57,7 @@ impl<'action> PingMessageAction<'action> {
     }
 }
 
-impl<'action> MessageAction for PingMessageAction<'action> {
+impl MessageAction for PingMessageAction {
     fn act_on(&self, message: Message) {
         match message {
             Message::Ping { message_id, from } => {
@@ -78,19 +78,19 @@ impl<'action> MessageAction for PingMessageAction<'action> {
     }
 }
 
-pub(crate) struct AddNodeAction<'action> {
-    routing_table: &'action Arc<Table>,
+pub(crate) struct AddNodeAction {
+    routing_table:  Arc<Table>,
 }
 
-impl<'action> AddNodeAction<'action> {
-    pub(crate) fn new(routing_table: &'action Arc<Table>) -> Self {
+impl AddNodeAction {
+    pub(crate) fn new(routing_table:  Arc<Table>) -> Self {
         AddNodeAction {
             routing_table,
         }
     }
 }
 
-impl<'action> MessageAction for AddNodeAction<'action> {
+impl MessageAction for AddNodeAction {
     fn act_on(&self, message: Message) {
         match message {
             AddNode { source, } => {
@@ -100,6 +100,8 @@ impl<'action> MessageAction for AddNodeAction<'action> {
         }
     }
 }
+
+
 #[cfg(test)]
 mod store_message_action_tests {
     use std::sync::Arc;
@@ -114,7 +116,7 @@ mod store_message_action_tests {
     #[test]
     fn act_on_store_message_and_store_the_key_value_in_store() {
         let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
-        let message_action = StoreMessageAction::new(&store);
+        let message_action = StoreMessageAction::new(store.clone());
 
         let message = Message::store_type(
             "kademlia".as_bytes().to_vec(),
@@ -170,9 +172,9 @@ mod ping_message_action_tests {
             }
         });
 
-        let async_network = Arc::new(AsyncNetwork::new(waiting_list()));
+        let async_network = AsyncNetwork::new(waiting_list());
         let current_node = Node::new(Endpoint::new("localhost".to_string(), 7878));
-        let message_action = PingMessageAction::new(&current_node, &async_network);
+        let message_action = PingMessageAction::new(current_node, async_network);
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 8009));
         message_action.act_on(Message::ping_type(node_sending_ping));
@@ -204,7 +206,7 @@ mod add_node_action_tests {
         let routing_table: Arc<Table> =
             Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
 
-        let message_action = AddNodeAction::new(&routing_table);
+        let message_action = AddNodeAction::new(routing_table.clone());
 
         let message = Message::add_node_type(
             Node::new_with_id(

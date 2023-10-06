@@ -5,7 +5,9 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::net::endpoint::Endpoint;
-use crate::net::message::Message::{FindValue, Ping, SendPingReply};
+use crate::net::message::Message::{
+    AddNode, FindNode, FindValue, Ping, SendPingReply, ShutDown, Store,
+};
 use crate::net::node::{Node, NodeId};
 use crate::store::KeyId;
 
@@ -28,6 +30,17 @@ impl Source {
 pub(crate) const U32_SIZE: usize = size_of::<u32>();
 
 pub(crate) type MessageId = i64;
+
+#[derive(Debug, Hash, Eq, PartialEq)]
+pub(crate) enum MessageTypes {
+    Store = 1,
+    AddNode = 2,
+    FindValue = 3,
+    FindNode = 4,
+    Ping = 5,
+    SendPingReply = 6,
+    Shutdown = 7,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub(crate) enum Message {
@@ -63,7 +76,7 @@ pub(crate) enum Message {
 impl Message {
     pub(crate) fn store_type(key: Vec<u8>, value: Vec<u8>, source: Node) -> Self {
         let key_id = KeyId::generate_from_bytes(&key);
-        Message::Store {
+        Store {
             key,
             key_id,
             value,
@@ -75,7 +88,7 @@ impl Message {
     }
 
     pub(crate) fn add_node_type(source: Node) -> Self {
-        Message::AddNode {
+        AddNode {
             source: Source {
                 node_endpoint: source.endpoint,
                 node_id: source.id,
@@ -93,7 +106,7 @@ impl Message {
     }
 
     pub(crate) fn find_node_type(node_id: NodeId) -> Self {
-        Message::FindNode {
+        FindNode {
             message_id: None,
             node_id,
         }
@@ -120,7 +133,7 @@ impl Message {
     }
 
     pub(crate) fn shutdown_type() -> Self {
-        Message::ShutDown
+        ShutDown
     }
 
     pub(crate) fn is_find_value_type(&self) -> bool {
@@ -138,7 +151,7 @@ impl Message {
     }
 
     pub(crate) fn is_shutdown_type(&self) -> bool {
-        if let Message::ShutDown = self {
+        if let ShutDown = self {
             return true;
         }
         return false;
@@ -172,21 +185,21 @@ impl Message {
     pub(crate) fn set_message_id(&mut self, id: MessageId) {
         match self {
             FindValue { message_id, .. }
-            | Message::FindNode { message_id, .. }
+            | FindNode { message_id, .. }
             | Ping { message_id, .. } => *message_id = Some(id),
             _ => {}
         }
     }
 
     fn is_store_type(&self) -> bool {
-        if let Message::Store { .. } = self {
+        if let Store { .. } = self {
             return true;
         }
         return false;
     }
 
     fn is_find_node_type(&self) -> bool {
-        if let Message::FindNode { .. } = self {
+        if let FindNode { .. } = self {
             return true;
         }
         return false;

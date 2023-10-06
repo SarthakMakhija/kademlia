@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use log::{error, info, warn};
@@ -7,7 +8,7 @@ use tokio::sync::mpsc::error::SendError;
 
 use crate::executor::message_action::{AddNodeAction, MessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
-use crate::net::message::Message;
+use crate::net::message::{Message, MessageTypes};
 use crate::net::node::Node;
 use crate::routing::Table;
 
@@ -47,14 +48,19 @@ impl AddNodeExecutor {
     fn start(&self, mut receiver: Receiver<ChanneledMessage>) {
         let routing_table = self.routing_table.clone();
 
+        let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
+        action_by_message.insert(MessageTypes::AddNode, Box::new(AddNodeAction::new(routing_table)));
+
         tokio::spawn(async move {
             loop {
                 match receiver.recv().await {
                     Some(channeled_message) => match channeled_message.message {
                         Message::AddNode { .. } => {
                             info!("working on add node message in AddNodeExecutor");
-                            let action = AddNodeAction::new(&routing_table);
-                            action.act_on(channeled_message.message.clone());
+                            action_by_message
+                                .get(&MessageTypes::AddNode)
+                                .unwrap()
+                                .act_on(channeled_message.message.clone());
 
                             let _ = channeled_message.send_response(MessageStatus::AddNodeDone);
                         }
