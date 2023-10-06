@@ -3,7 +3,6 @@ use std::sync::RwLock;
 use log::info;
 
 use crate::id::Id;
-use crate::net::endpoint::Endpoint;
 use crate::net::node::{Node, NodeId};
 use crate::routing::neighbors::ClosestNeighbors;
 
@@ -77,10 +76,10 @@ impl Table {
         (bucket_index, nodes.contains(node))
     }
 
-    pub(crate) fn first_node_address_in(&self, bucket_index: usize) -> Option<Endpoint> {
+    pub(crate) fn first_node_in(&self, bucket_index: usize) -> Option<Node> {
         assert!(bucket_index < self.node_id.id_length_in_bits);
         let nodes = self.buckets[bucket_index].read().unwrap();
-        nodes.get(0).map(|node| node.endpoint.clone())
+        nodes.get(0).map(|node| node.clone())
     }
 
     fn closest_neighbors(&self, id: &Id, number_of_neighbors: usize) -> ClosestNeighbors {
@@ -229,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn first_node_address() {
+    fn first_node() {
         let id: u16 = 511;
 
         let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
@@ -237,26 +236,26 @@ mod tests {
             routing_table.add(Node::new(Endpoint::new("localhost".to_string(), 2379)));
         assert!(added);
 
-        let endpoint = routing_table.first_node_address_in(bucket_index).unwrap();
-        assert_eq!("localhost:2379", endpoint.address());
+        let node = routing_table.first_node_in(bucket_index).unwrap();
+        assert_eq!("localhost:2379", node.endpoint.address());
     }
 
     #[test]
-    fn first_node_address_in_an_empty_bucket() {
+    fn first_node_in_an_empty_bucket() {
         let id: u16 = 511;
         let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
 
-        let endpoint = routing_table.first_node_address_in(0);
-        assert!(endpoint.is_none());
+        let node = routing_table.first_node_in(0);
+        assert!(node.is_none());
     }
 
     #[test]
     #[should_panic]
-    fn first_node_address_with_invalid_bucket_index() {
+    fn first_node_with_invalid_bucket_index() {
         let id: u16 = 511;
         let routing_table = Table::new(Id::new(id.to_be_bytes().to_vec()));
 
-        routing_table.first_node_address_in(200);
+        routing_table.first_node_in(200);
     }
 
     #[test]
