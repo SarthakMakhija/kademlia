@@ -41,6 +41,19 @@ impl Table {
         return (bucket_index, false);
     }
 
+    pub(crate) fn remove_and_add(&self, bucket_index: usize, to_remove: &Node, to_add: Node) {
+        assert!(bucket_index < self.node_id.id_length_in_bits);
+        assert_eq!(
+            self.bucket_index(&to_remove.id),
+            self.bucket_index(&to_add.id)
+        );
+        if self.contains(to_remove).1 && !self.contains(&to_add).1 {
+            let mut nodes = &mut self.buckets[bucket_index].write().unwrap();
+            Self::remove_internal(to_remove, bucket_index, &mut nodes);
+            self.add_internal(to_add, bucket_index, &mut nodes);
+        }
+    }
+
     pub(crate) fn contains(&self, node: &Node) -> (usize, bool) {
         let bucket_index = self.bucket_index(&node.id);
         let nodes = self.buckets[bucket_index].read().unwrap();
@@ -220,6 +233,84 @@ mod tests {
         let node = &Node::new(Endpoint::new("localhost".to_string(), 1000));
         let deleted = routing_table.remove(node);
         assert_eq!(false, deleted);
+    }
+
+    #[test]
+    fn remove_and_add_a_node_in_the_same_bucket_1() {
+        let routing_table = Table::new(Id::new(255u16.to_be_bytes().to_vec()));
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 2379),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        );
+        let (bucket_index, added) = routing_table.add(node.clone());
+        assert!(added);
+
+        let to_add = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1090),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        );
+        routing_table.remove_and_add(bucket_index, &node, to_add.clone());
+
+        let (_, contains) = routing_table.contains(&to_add);
+        assert!(contains);
+
+        let (_, contains) = routing_table.contains(&node);
+        assert_eq!(false, contains);
+    }
+
+    #[test]
+    fn remove_and_add_a_node_in_the_same_bucket_2() {
+        let routing_table = Table::new(Id::new(255u16.to_be_bytes().to_vec()));
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 2379),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        );
+        let other_node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 9018),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        );
+
+        let (_, added) = routing_table.add(node.clone());
+        assert!(added);
+
+        let (bucket_index, added) = routing_table.add(other_node.clone());
+        assert!(added);
+
+        let to_add = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1090),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        );
+        routing_table.remove_and_add(bucket_index, &node, to_add.clone());
+
+        let (_, contains) = routing_table.contains(&to_add);
+        assert!(contains);
+
+        let (_, contains) = routing_table.contains(&node);
+        assert_eq!(false, contains);
+
+        let (_, contains) = routing_table.contains(&other_node);
+        assert!(contains);
+    }
+
+    #[test]
+    #[should_panic]
+    fn remove_and_add_a_node_with_different_bucket_index() {
+        let routing_table = Table::new(Id::new(255u16.to_be_bytes().to_vec()));
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 2379),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        );
+        let (bucket_index, added) = routing_table.add(node.clone());
+        assert!(added);
+
+        let to_add = Node::new(Endpoint::new("localhost".to_string(), 1090));
+        routing_table.remove_and_add(bucket_index, &node, to_add.clone());
+
+        let (_, contains) = routing_table.contains(&to_add);
+        assert!(contains);
+
+        let (_, contains) = routing_table.contains(&node);
+        assert_eq!(false, contains);
     }
 
     #[test]
