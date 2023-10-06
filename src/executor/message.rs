@@ -2,16 +2,16 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use log::{error, info, warn};
-use tokio::sync::{mpsc, oneshot};
-use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::executor::message_action::{MessageAction, PingMessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
-use crate::net::AsyncNetwork;
 use crate::net::message::{Message, MessageTypes};
 use crate::net::node::Node;
 use crate::net::wait::WaitingList;
+use crate::net::AsyncNetwork;
 use crate::store::Store;
 
 pub(crate) struct MessageExecutor {
@@ -60,8 +60,14 @@ impl MessageExecutor {
         let async_network = self.async_network.clone();
 
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
-        action_by_message.insert(MessageTypes::Store, Box::new(StoreMessageAction::new(store)));
-        action_by_message.insert(MessageTypes::Ping, Box::new(PingMessageAction::new(current_node, async_network)));
+        action_by_message.insert(
+            MessageTypes::Store,
+            Box::new(StoreMessageAction::new(store)),
+        );
+        action_by_message.insert(
+            MessageTypes::Ping,
+            Box::new(PingMessageAction::new(current_node, async_network)),
+        );
 
         tokio::spawn(async move {
             loop {
@@ -72,7 +78,8 @@ impl MessageExecutor {
                             action_by_message
                                 .get(&MessageTypes::Store)
                                 .unwrap()
-                                .act_on(channeled_message.message.clone());
+                                .act_on(channeled_message.message.clone())
+                                .await;
 
                             let _ = channeled_message.send_response(MessageStatus::StoreDone);
                         }
@@ -81,7 +88,8 @@ impl MessageExecutor {
                             action_by_message
                                 .get(&MessageTypes::Ping)
                                 .unwrap()
-                                .act_on(channeled_message.message.clone());
+                                .act_on(channeled_message.message.clone())
+                                .await;
 
                             let _ = channeled_message.send_response(MessageStatus::PingDone);
                         }

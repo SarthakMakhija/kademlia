@@ -1,36 +1,35 @@
+use async_trait::async_trait;
 use std::sync::Arc;
 
-use crate::net::AsyncNetwork;
 use crate::net::message::Message;
 use crate::net::message::Message::AddNode;
 use crate::net::node::Node;
+use crate::net::AsyncNetwork;
 use crate::routing::Table;
 use crate::store::{Key, Store};
 
+#[async_trait]
 pub(crate) trait MessageAction: Send + Sync {
-    fn act_on(&self, message: Message);
+    async fn act_on(&self, message: Message);
 }
 
 pub(crate) struct StoreMessageAction {
-    store: Arc<dyn Store>
+    store: Arc<dyn Store>,
 }
 
 impl StoreMessageAction {
-    pub(crate) fn new(store:  Arc<dyn Store>) -> Self {
-        StoreMessageAction {
-            store,
-        }
+    pub(crate) fn new(store: Arc<dyn Store>) -> Self {
+        StoreMessageAction { store }
     }
 }
 
+#[async_trait]
 impl MessageAction for StoreMessageAction {
-    fn act_on(&self, message: Message) {
+    async fn act_on(&self, message: Message) {
         if let Message::Store {
-            key,
-            key_id,
-            value,
-            ..
-        } = message {
+            key, key_id, value, ..
+        } = message
+        {
             self.store
                 .put_or_update(Key::new_with_id(key, key_id), value);
         }
@@ -38,15 +37,12 @@ impl MessageAction for StoreMessageAction {
 }
 
 pub(crate) struct PingMessageAction {
-    current_node:  Node,
-    async_network:  Arc<AsyncNetwork>,
+    current_node: Node,
+    async_network: Arc<AsyncNetwork>,
 }
 
 impl PingMessageAction {
-    pub(crate) fn new(
-        current_node:  Node,
-        async_network:  Arc<AsyncNetwork>,
-    ) -> Self {
+    pub(crate) fn new(current_node: Node, async_network: Arc<AsyncNetwork>) -> Self {
         PingMessageAction {
             current_node,
             async_network,
@@ -54,8 +50,9 @@ impl PingMessageAction {
     }
 }
 
+#[async_trait]
 impl MessageAction for PingMessageAction {
-    fn act_on(&self, message: Message) {
+    async fn act_on(&self, message: Message) {
         if let Message::Ping { message_id, from } = message {
             let current_node = self.current_node.clone();
             let async_network = self.async_network.clone();
@@ -73,25 +70,23 @@ impl MessageAction for PingMessageAction {
 }
 
 pub(crate) struct AddNodeAction {
-    routing_table:  Arc<Table>,
+    routing_table: Arc<Table>,
 }
 
 impl AddNodeAction {
-    pub(crate) fn new(routing_table:  Arc<Table>) -> Self {
-        AddNodeAction {
-            routing_table,
-        }
+    pub(crate) fn new(routing_table: Arc<Table>) -> Self {
+        AddNodeAction { routing_table }
     }
 }
 
+#[async_trait]
 impl MessageAction for AddNodeAction {
-    fn act_on(&self, message: Message) {
-        if let AddNode { source, } = message {
+    async fn act_on(&self, message: Message) {
+        if let AddNode { source } = message {
             self.routing_table.add(source.to_node());
         }
     }
 }
-
 
 #[cfg(test)]
 mod store_message_action_tests {
@@ -104,8 +99,8 @@ mod store_message_action_tests {
     use crate::net::node::Node;
     use crate::store::{InMemoryStore, Store};
 
-    #[test]
-    fn act_on_store_message_and_store_the_key_value_in_store() {
+    #[tokio::test]
+    async fn act_on_store_message_and_store_the_key_value_in_store() {
         let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
         let message_action = StoreMessageAction::new(store.clone());
 
@@ -117,7 +112,7 @@ mod store_message_action_tests {
                 Id::new(511u16.to_be_bytes().to_vec()),
             ),
         );
-        message_action.act_on(message);
+        message_action.act_on(message).await;
 
         let value = store.get(&"kademlia".as_bytes().to_vec());
         assert!(value.is_some());
@@ -137,12 +132,12 @@ mod ping_message_action_tests {
     use tokio::net::TcpListener;
 
     use crate::executor::message_action::{MessageAction, PingMessageAction};
-    use crate::net::AsyncNetwork;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::net::AsyncNetwork;
     use crate::time::SystemClock;
 
     #[tokio::test]
@@ -168,7 +163,9 @@ mod ping_message_action_tests {
         let message_action = PingMessageAction::new(current_node, async_network);
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 8009));
-        message_action.act_on(Message::ping_type(node_sending_ping));
+        message_action
+            .act_on(Message::ping_type(node_sending_ping))
+            .await;
 
         handle.await.unwrap();
     }
@@ -192,20 +189,18 @@ mod add_node_action_tests {
     use crate::net::node::Node;
     use crate::routing::Table;
 
-    #[test]
-    fn act_on_store_message_and_add_the_node_in_routing_table() {
+    #[tokio::test]
+    async fn act_on_store_message_and_add_the_node_in_routing_table() {
         let routing_table: Arc<Table> =
             Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
 
         let message_action = AddNodeAction::new(routing_table.clone());
 
-        let message = Message::add_node_type(
-            Node::new_with_id(
-                Endpoint::new("localhost".to_string(), 1909),
-                Id::new(511u16.to_be_bytes().to_vec()),
-            ),
-        );
-        message_action.act_on(message);
+        let message = Message::add_node_type(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 1909),
+            Id::new(511u16.to_be_bytes().to_vec()),
+        ));
+        message_action.act_on(message).await;
 
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 1909),

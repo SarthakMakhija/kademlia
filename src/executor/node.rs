@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use log::{error, info, warn};
-use tokio::sync::{mpsc, oneshot};
-use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::executor::message_action::{AddNodeAction, MessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
@@ -49,7 +49,10 @@ impl AddNodeExecutor {
         let routing_table = self.routing_table.clone();
 
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
-        action_by_message.insert(MessageTypes::AddNode, Box::new(AddNodeAction::new(routing_table)));
+        action_by_message.insert(
+            MessageTypes::AddNode,
+            Box::new(AddNodeAction::new(routing_table)),
+        );
 
         tokio::spawn(async move {
             loop {
@@ -60,7 +63,8 @@ impl AddNodeExecutor {
                             action_by_message
                                 .get(&MessageTypes::AddNode)
                                 .unwrap()
-                                .act_on(channeled_message.message.clone());
+                                .act_on(channeled_message.message.clone())
+                                .await;
 
                             let _ = channeled_message.send_response(MessageStatus::AddNodeDone);
                         }
@@ -86,12 +90,12 @@ impl AddNodeExecutor {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use crate::executor::node::AddNodeExecutor;
     use crate::id::Id;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn submit_add_node_message_successfully() {
@@ -101,9 +105,10 @@ mod tests {
         );
         let executor = AddNodeExecutor::new(node);
         let submit_result = executor
-            .submit(Message::add_node_type(
-                Node::new(Endpoint::new("localhost".to_string(), 9090)),
-            ))
+            .submit(Message::add_node_type(Node::new(Endpoint::new(
+                "localhost".to_string(),
+                9090,
+            ))))
             .await;
 
         assert!(submit_result.is_ok());
@@ -117,14 +122,18 @@ mod tests {
         );
         let executor = AddNodeExecutor::new(node);
         let submit_result = executor
-            .submit(Message::add_node_type(
-                Node::new(Endpoint::new("localhost".to_string(), 8989)),
-            ))
+            .submit(Message::add_node_type(Node::new(Endpoint::new(
+                "localhost".to_string(),
+                8989,
+            ))))
             .await;
 
         assert!(submit_result.is_ok());
 
-        let message_response_result = submit_result.unwrap().wait_until_response_is_received().await;
+        let message_response_result = submit_result
+            .unwrap()
+            .wait_until_response_is_received()
+            .await;
         assert!(message_response_result.is_ok());
 
         let node = Node::new(Endpoint::new("localhost".to_string(), 8989));
@@ -144,14 +153,18 @@ mod tests {
 
         let handle = tokio::spawn(async move {
             let submit_result = executor
-                .submit(Message::add_node_type(
-                    Node::new(Endpoint::new("localhost".to_string(), 8989)),
-                ))
+                .submit(Message::add_node_type(Node::new(Endpoint::new(
+                    "localhost".to_string(),
+                    8989,
+                ))))
                 .await;
 
             assert!(submit_result.is_ok());
 
-            let message_response_result = submit_result.unwrap().wait_until_response_is_received().await;
+            let message_response_result = submit_result
+                .unwrap()
+                .wait_until_response_is_received()
+                .await;
             assert!(message_response_result.is_ok());
 
             let node = Node::new(Endpoint::new("localhost".to_string(), 8989));
@@ -162,14 +175,18 @@ mod tests {
 
         let other_handle = tokio::spawn(async move {
             let submit_result = executor_clone
-                .submit(Message::add_node_type(
-                    Node::new(Endpoint::new("localhost".to_string(), 7878)),
-                ))
+                .submit(Message::add_node_type(Node::new(Endpoint::new(
+                    "localhost".to_string(),
+                    7878,
+                ))))
                 .await;
 
             assert!(submit_result.is_ok());
 
-            let message_response_result = submit_result.unwrap().wait_until_response_is_received().await;
+            let message_response_result = submit_result
+                .unwrap()
+                .wait_until_response_is_received()
+                .await;
             assert!(message_response_result.is_ok());
 
             let node = Node::new(Endpoint::new("localhost".to_string(), 7878));
@@ -198,9 +215,10 @@ mod tests {
         assert!(message_response_result.is_ok());
 
         let submit_result = executor
-            .submit(Message::add_node_type(
-                Node::new(Endpoint::new("localhost".to_string(), 1909)),
-            ))
+            .submit(Message::add_node_type(Node::new(Endpoint::new(
+                "localhost".to_string(),
+                1909,
+            ))))
             .await;
         assert!(submit_result.is_err());
     }
