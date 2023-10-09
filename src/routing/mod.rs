@@ -67,6 +67,31 @@ impl Table {
         nodes.get(0).map(|node| node.clone())
     }
 
+    pub(crate) fn closest_neighbors(
+        &self,
+        id: &Id,
+        number_of_neighbors: usize,
+    ) -> ClosestNeighbors {
+        let bucket_index = self.node_id.differing_bit_position(id);
+        let mut closest_neighbors = ClosestNeighbors::new(number_of_neighbors, id.clone());
+
+        for bucket_index in self.all_adjacent_bucket_indices(bucket_index) {
+            let nodes = self.buckets[bucket_index].read().unwrap();
+            if !nodes.is_empty() {
+                if !closest_neighbors.add_missing(&nodes) {
+                    break;
+                }
+            }
+        }
+        info!(
+            "returning a total of {} closest neighbors for the id {:?}",
+            closest_neighbors.node_ids.len(),
+            id
+        );
+        closest_neighbors.sort_ascending_by_distance();
+        return closest_neighbors;
+    }
+
     fn add_internal(
         &self,
         node: Node,
@@ -111,27 +136,6 @@ impl Table {
             return true;
         }
         return false;
-    }
-
-    fn closest_neighbors(&self, id: &Id, number_of_neighbors: usize) -> ClosestNeighbors {
-        let bucket_index = self.node_id.differing_bit_position(id);
-        let mut closest_neighbors = ClosestNeighbors::new(number_of_neighbors, id.clone());
-
-        for bucket_index in self.all_adjacent_bucket_indices(bucket_index) {
-            let nodes = self.buckets[bucket_index].read().unwrap();
-            if !nodes.is_empty() {
-                if !closest_neighbors.add_missing(&nodes) {
-                    break;
-                }
-            }
-        }
-        info!(
-            "returning a total of {} closest neighbors for the id {:?}",
-            closest_neighbors.node_ids.len(),
-            id
-        );
-        closest_neighbors.sort_ascending_by_distance();
-        return closest_neighbors;
     }
 
     //TODO: confirm this from the paper

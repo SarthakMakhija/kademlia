@@ -38,6 +38,10 @@ impl ClosestNeighbors {
         self.nodes
             .sort_by_key(|node| node.id.distance_from(&self.target));
     }
+
+    pub(crate) fn all_nodes(&self) -> &Vec<Node> {
+        &self.nodes
+    }
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::net::endpoint::Endpoint;
 use crate::net::message::Message::{
-    AddNode, FindNode, FindValue, Ping, PingReply, ShutDown, Store,
+    AddNode, FindNode, FindValue, FindValueReply, Ping, PingReply, ShutDown, Store,
 };
 use crate::net::node::{Node, NodeId};
 use crate::store::KeyId;
@@ -18,12 +18,24 @@ pub(crate) struct Source {
 }
 
 impl Source {
+    pub(crate) fn new(node: &Node) -> Self {
+        let node = node.clone();
+        Source {
+            node_endpoint: node.node_endpoint(),
+            node_id: node.node_id(),
+        }
+    }
+
     pub(crate) fn to_node(self) -> Node {
         Node::new_with_id(self.node_endpoint, self.node_id)
     }
 
     pub(crate) fn endpoint(&self) -> &Endpoint {
         &self.node_endpoint
+    }
+
+    pub(crate) fn node_id(&self) -> &NodeId {
+        &self.node_id
     }
 }
 
@@ -54,9 +66,15 @@ pub(crate) enum Message {
         source: Source,
     },
     FindValue {
+        source: Source,
         message_id: Option<MessageId>,
         key: Vec<u8>,
         key_id: KeyId,
+    },
+    FindValueReply {
+        message_id: MessageId,
+        value: Option<Vec<u8>>,
+        neighbors: Option<Vec<Source>>,
     },
     FindNode {
         message_id: Option<MessageId>,
@@ -96,12 +114,29 @@ impl Message {
         }
     }
 
-    pub(crate) fn find_value_type(key: Vec<u8>) -> Self {
+    pub(crate) fn find_value_type(source: Node, key: Vec<u8>) -> Self {
         let key_id = KeyId::generate_from_bytes(&key);
         FindValue {
+            source: Source {
+                node_endpoint: source.endpoint,
+                node_id: source.id,
+            },
             message_id: None,
             key,
             key_id,
+        }
+    }
+
+    pub(crate) fn find_value_reply_type(
+        message_id: MessageId,
+        value: Option<Vec<u8>>,
+        closest_neighbors: Option<Vec<Source>>,
+    ) -> Self {
+        assert!(value.is_some() || closest_neighbors.is_some());
+        FindValueReply {
+            message_id,
+            value,
+            neighbors: closest_neighbors,
         }
     }
 
@@ -138,6 +173,13 @@ impl Message {
 
     pub(crate) fn is_find_value_type(&self) -> bool {
         if let FindValue { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
+    pub(crate) fn is_find_value_reply_type(&self) -> bool {
+        if let FindValueReply { .. } = self {
             return true;
         }
         return false;
@@ -246,13 +288,15 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_a_find_value_message() {
-        let find_value_type = Message::find_value_type("kademlia".as_bytes().to_vec());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let find_value_type = Message::find_value_type(node, "kademlia".as_bytes().to_vec());
         let serialized = find_value_type.serialize().unwrap();
         let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_find_value_type());
         match deserialized {
             Message::FindValue {
+                source: _,
                 message_id: _,
                 key,
                 key_id: _,
@@ -267,7 +311,8 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_a_find_value_message_with_message_id() {
-        let mut find_value_type = Message::find_value_type("kademlia".as_bytes().to_vec());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let mut find_value_type = Message::find_value_type(node, "kademlia".as_bytes().to_vec());
         find_value_type.set_message_id(10);
 
         let serialized = find_value_type.serialize().unwrap();
@@ -276,6 +321,7 @@ mod tests {
         assert!(deserialized.is_find_value_type());
         match deserialized {
             Message::FindValue {
+                source: _,
                 message_id,
                 key,
                 key_id: _,
@@ -312,7 +358,8 @@ mod tests {
 
     #[test]
     fn set_message_id_in_find_value() {
-        let mut find_value_type = Message::find_value_type("kademlia".as_bytes().to_vec());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let mut find_value_type = Message::find_value_type(node, "kademlia".as_bytes().to_vec());
         find_value_type.set_message_id(100);
 
         assert!(find_value_type.is_find_value_type());

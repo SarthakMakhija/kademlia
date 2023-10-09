@@ -49,6 +49,7 @@ mod tests {
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
+    use crate::net::node::Node;
 
     #[tokio::test]
     async fn read_from_connection_successfully() {
@@ -73,7 +74,8 @@ mod tests {
         assert!(tcp_connection_result.is_ok());
 
         let mut tcp_connection = tcp_connection_result.unwrap();
-        let payload = Message::find_value_type(b"Kademlia".to_vec());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let payload = Message::find_value_type(node, b"Kademlia".to_vec());
 
         let write_result = tcp_connection.write(&payload).await;
         assert!(write_result.is_ok());
@@ -91,7 +93,8 @@ mod tests {
         assert!(tcp_connection_result.is_ok());
 
         let mut tcp_connection = tcp_connection_result.unwrap();
-        let payload = Message::find_value_type(b"Kademlia".to_vec());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let payload = Message::find_value_type(node, b"Kademlia".to_vec());
 
         let write_result = tcp_connection.write(&payload).await;
         assert!(write_result.is_ok());

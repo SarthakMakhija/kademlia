@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use log::warn;
 
 use crate::net::{AsyncNetwork, NetworkErrorKind};
 use crate::net::callback::{ResponseAwaitingCallback, ResponseStatus};
-use crate::net::message::Message;
+use crate::net::message::{Message, Source};
 use crate::net::message::Message::AddNode;
 use crate::net::node::Node;
 use crate::routing::Table;
@@ -68,6 +69,44 @@ impl MessageAction for PingMessageAction {
                     )
                     .await;
             });
+        }
+    }
+}
+
+pub(crate) struct FindValueMessageAction {
+    store: Arc<dyn Store>,
+    routing_table: Arc<Table>,
+    async_network: Arc<AsyncNetwork>,
+}
+
+impl FindValueMessageAction {
+    pub(crate) fn new(store: Arc<dyn Store>, routing_table: Arc<Table>,  async_network: Arc<AsyncNetwork>) -> Self {
+        FindValueMessageAction {
+            store,
+            routing_table,
+            async_network
+        }
+    }
+}
+
+#[async_trait]
+impl MessageAction for FindValueMessageAction {
+    async fn act_on(&self, message: Message) {
+        if let Message::FindValue {source, message_id, key, key_id} = message {
+            if message_id.is_none() {
+                warn!("received a FindValue message with an empty message id, skipping the processing");
+                return
+            }
+            let find_value_reply = match self.store.get(&key) {
+                None => {
+                    let neighbors = self.routing_table.closest_neighbors(&key_id, 5);
+                    let sources: Vec<Source> = neighbors.all_nodes().iter().map(|node| Source::new(node)).collect();
+                    Message::find_value_reply_type(message_id.unwrap(), None, Some(sources))
+                }
+                Some(value) => Message::find_value_reply_type(message_id.unwrap(), Some(value), None),
+            };
+
+            let _ = self.async_network.send(find_value_reply, source.endpoint()).await;
         }
     }
 }
@@ -367,6 +406,131 @@ mod add_node_action_tests {
 
         let (_, contains) = routing_table.contains(&node);
         assert_eq!(false, contains);
+    }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod find_value_message_action_tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::net::TcpListener;
+
+    use crate::executor::message_action::{FindValueMessageAction, MessageAction};
+    use crate::id::Id;
+    use crate::net::AsyncNetwork;
+    use crate::net::connection::AsyncTcpConnection;
+    use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
+    use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::routing::Table;
+    use crate::store::{InMemoryStore, Key, Store};
+    use crate::time::SystemClock;
+
+    #[tokio::test]
+    async fn act_on_find_value_message_given_value_for_the_key_is_found_in_store() {
+        let listener_result = TcpListener::bind("localhost:8712").await;
+        assert!(listener_result.is_ok());
+
+        let handle = tokio::spawn(async move {
+            let tcp_listener = listener_result.unwrap();
+            let stream = tcp_listener.accept().await.unwrap();
+
+            let mut connection = AsyncTcpConnection::new(stream.0);
+            let message = connection.read().await.unwrap();
+
+            assert!(message.is_find_value_reply_type());
+            if let Message::FindValueReply { message_id, value, .. } = message {
+                assert_eq!(100, message_id);
+                assert_eq!("distributed hash table".as_bytes().to_vec(), value.unwrap());
+            }
+        });
+
+        let async_network = AsyncNetwork::new(waiting_list());
+        let routing_table: Arc<Table> =
+            Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+
+        let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
+        let message_action = FindValueMessageAction::new(store.clone(), routing_table, async_network);
+
+        store.put_or_update(Key::new("kademlia".as_bytes().to_vec()), "distributed hash table".as_bytes().to_vec());
+
+        let mut message = Message::find_value_type(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 8712),
+                Id::new(511u16.to_be_bytes().to_vec()),
+            ),
+            "kademlia".as_bytes().to_vec()
+        );
+        message.set_message_id(100);
+
+        message_action.act_on(message).await;
+
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn act_on_find_value_message_given_value_for_the_key_is_not_found_in_store() {
+        let listener_result = TcpListener::bind("localhost:9912").await;
+        assert!(listener_result.is_ok());
+
+        let handle = tokio::spawn(async move {
+            let tcp_listener = listener_result.unwrap();
+            let stream = tcp_listener.accept().await.unwrap();
+
+            let mut connection = AsyncTcpConnection::new(stream.0);
+            let message = connection.read().await.unwrap();
+
+            assert!(message.is_find_value_reply_type());
+            if let Message::FindValueReply { message_id, value: _, neighbors, } = message {
+                assert_eq!(100, message_id);
+
+                let neighbors = neighbors.unwrap();
+                assert_eq!(2, neighbors.len());
+                assert_eq!(&Id::new(247u16.to_be_bytes().to_vec()), neighbors.get(0).unwrap().node_id());
+                assert_eq!(&Id::new(249u16.to_be_bytes().to_vec()), neighbors.get(1).unwrap().node_id());
+            }
+        });
+
+        let async_network = AsyncNetwork::new(waiting_list());
+        let routing_table: Arc<Table> =
+            Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+
+        let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
+        let message_action = FindValueMessageAction::new(store, routing_table.clone(), async_network);
+
+        routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 7070),
+                Id::new(247u16.to_be_bytes().to_vec()),
+            )
+        );
+        routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 8989),
+                Id::new(249u16.to_be_bytes().to_vec()),
+            )
+        );
+
+        let mut message = Message::find_value_type(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 9912),
+                Id::new(511u16.to_be_bytes().to_vec()),
+            ),
+            "kademlia".as_bytes().to_vec()
+        );
+        message.set_message_id(100);
+
+        message_action.act_on(message).await;
+
+        handle.await.unwrap();
     }
 
     fn waiting_list() -> Arc<WaitingList> {
