@@ -199,7 +199,7 @@ mod ping_message_action_tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::SendPingReply { to, .. } = message {
+            if let Message::PingReply { to, .. } = message {
                 assert_eq!("localhost:7878", to.endpoint().address());
             }
         });

@@ -16,6 +16,7 @@ use crate::store::Store;
 
 pub(crate) struct MessageExecutor {
     sender: Sender<ChanneledMessage>,
+    waiting_list: Arc<WaitingList>,
     async_network: Arc<AsyncNetwork>,
 }
 
@@ -30,6 +31,7 @@ impl MessageExecutor {
 
         let executor = MessageExecutor {
             sender,
+            waiting_list: waiting_list.clone(),
             async_network: AsyncNetwork::new(waiting_list),
         };
         executor.start(current_node, receiver, store);
@@ -58,6 +60,7 @@ impl MessageExecutor {
         store: Arc<dyn Store>,
     ) {
         let async_network = self.async_network.clone();
+        let waiting_list = self.waiting_list.clone();
 
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
         action_by_message.insert(
@@ -92,6 +95,12 @@ impl MessageExecutor {
                                 .await;
 
                             let _ = channeled_message.send_response(MessageStatus::PingDone);
+                        }
+                        Message::PingReply {message_id, ..} => {
+                            info!("working on ping reply message in MessageExecutor");
+                            waiting_list.handle_response(message_id, Ok(channeled_message.message.clone()));
+
+                            let _ = channeled_message.send_response(MessageStatus::PingReplyDone);
                         }
                         Message::ShutDown => {
                             drop(receiver);
@@ -306,14 +315,46 @@ mod ping_message_executor {
     use tokio::net::TcpListener;
 
     use crate::executor::message::MessageExecutor;
+    use crate::executor::message::ping_message_executor::setup::TestCallback;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
-    use crate::net::message::Message;
+    use crate::net::message::{Message, MessageId};
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::store::InMemoryStore;
     use crate::time::SystemClock;
 
+    mod setup {
+        use crate::net::callback::{Callback, ResponseError};
+        use std::any::Any;
+        use std::sync::{Arc, Mutex};
+
+        use crate::net::message::Message;
+
+        pub(crate) struct TestCallback {
+           pub(crate) responses: Mutex<Vec<Message>>,
+        }
+
+        impl TestCallback {
+            pub(crate) fn new() -> Arc<TestCallback> {
+                Arc::new(TestCallback {
+                    responses: Mutex::new(Vec::new()),
+                })
+            }
+        }
+
+        impl Callback for TestCallback {
+            fn on_response(&self, response: Result<Message, ResponseError>) {
+                if response.is_ok() {
+                    self.responses.lock().unwrap().push(response.unwrap());
+                }
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+    }
     #[tokio::test]
     async fn submit_ping_message_with_successful_reply() {
         let listener_result = TcpListener::bind("localhost:7565").await;
@@ -327,7 +368,7 @@ mod ping_message_executor {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::SendPingReply { to, .. } = message {
+            if let Message::PingReply { to, .. } = message {
                 assert_eq!("localhost:9090", to.endpoint().address());
             }
         });
@@ -349,6 +390,31 @@ mod ping_message_executor {
         assert!(message_response_result.is_ok());
 
         handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn submit_ping_reply_message() {
+        let store = Arc::new(InMemoryStore::new());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
+
+        let waiting_list = waiting_list();
+        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone());
+
+        let message_id: MessageId = 100;
+        let callback = TestCallback::new();
+        waiting_list.add(message_id, callback.clone());
+
+        let ping_reply_message = Message::ping_reply_type(node, message_id);
+
+        let submit_result = executor.submit(ping_reply_message).await;
+        assert!(submit_result.is_ok());
+
+        let _ = submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+
+        let response_guard = callback.responses.lock().unwrap();
+        let message = response_guard.get(0).unwrap();
+
+        assert!(message.is_ping_reply_type());
     }
 
     fn waiting_list() -> Arc<WaitingList> {
