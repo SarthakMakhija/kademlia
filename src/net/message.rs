@@ -252,7 +252,7 @@ impl Message {
 mod tests {
     use crate::id::{Id, EXPECTED_ID_LENGTH_IN_BYTES};
     use crate::net::endpoint::Endpoint;
-    use crate::net::message::Message;
+    use crate::net::message::{Message, Source};
     use crate::net::node::{Node, NodeId};
 
     #[test]
@@ -331,6 +331,68 @@ mod tests {
             }
             _ => {
                 panic!("Expected findValue type message, but was not");
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn serialize_deserialize_a_find_value_reply_message_without_value_and_closest_neighbors() {
+        Message::find_value_reply_type(10, None, None);
+    }
+
+    #[test]
+    fn serialize_deserialize_a_find_value_reply_message_with_value() {
+        let mut find_value_reply_type =
+            Message::find_value_reply_type(10, Some("kademlia".as_bytes().to_vec()), None);
+
+        let serialized = find_value_reply_type.serialize().unwrap();
+        let deserialized = Message::deserialize_from(&serialized).unwrap();
+
+        assert!(deserialized.is_find_value_reply_type());
+        match deserialized {
+            Message::FindValueReply {
+                message_id,
+                value,
+                neighbors,
+            } => {
+                assert_eq!(10, message_id);
+                assert_eq!(Some("kademlia".as_bytes().to_vec()), value);
+                assert!(neighbors.is_none());
+            }
+            _ => {
+                panic!("Expected findValueReply type message, but was not");
+            }
+        }
+    }
+
+    #[test]
+    fn serialize_deserialize_a_find_value_reply_message_with_closest_neighbors() {
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let mut neighbors = Vec::with_capacity(1);
+        neighbors.push(Source::new(&node));
+
+        let mut find_value_reply_type = Message::find_value_reply_type(10, None, Some(neighbors));
+
+        let serialized = find_value_reply_type.serialize().unwrap();
+        let deserialized = Message::deserialize_from(&serialized).unwrap();
+
+        assert!(deserialized.is_find_value_reply_type());
+        match deserialized {
+            Message::FindValueReply {
+                message_id,
+                value,
+                neighbors,
+            } => {
+                assert_eq!(10, message_id);
+                assert_eq!(value, None);
+                assert_eq!(
+                    "localhost:1010",
+                    neighbors.unwrap().get(0).unwrap().endpoint().address()
+                );
+            }
+            _ => {
+                panic!("Expected findValueReply type message, but was not");
             }
         }
     }
