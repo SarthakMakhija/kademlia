@@ -67,7 +67,7 @@ pub(crate) enum Message {
         from: Source,
     },
     SendPingReply {
-        message_id: Option<MessageId>,
+        message_id: MessageId,
         to: Source,
     },
     ShutDown,
@@ -122,7 +122,7 @@ impl Message {
         }
     }
 
-    pub(crate) fn ping_reply_type(current_node: Node, message_id: Option<MessageId>) -> Self {
+    pub(crate) fn ping_reply_type(current_node: Node, message_id: MessageId) -> Self {
         SendPingReply {
             message_id,
             to: Source {

@@ -60,9 +60,10 @@ impl MessageAction for PingMessageAction {
             let async_network = self.async_network.clone();
 
             tokio::spawn(async move {
+                assert!(message_id.is_some());
                 let _ = async_network
                     .send(
-                        Message::ping_reply_type(current_node, message_id),
+                        Message::ping_reply_type(current_node, message_id.unwrap()),
                         from.endpoint(),
                     )
                     .await;
@@ -208,8 +209,11 @@ mod ping_message_action_tests {
         let message_action = PingMessageAction::new(current_node, async_network);
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 8009));
+        let mut ping_message = Message::ping_type(node_sending_ping);
+        ping_message.set_message_id(10) ;
+
         message_action
-            .act_on(Message::ping_type(node_sending_ping))
+            .act_on(ping_message)
             .await;
 
         handle.await.unwrap();

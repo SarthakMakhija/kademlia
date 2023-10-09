@@ -337,7 +337,11 @@ mod ping_message_executor {
         let executor = MessageExecutor::new(node, store.clone(), waiting_list());
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 7565));
-        let submit_result = executor.submit(Message::ping_type(node_sending_ping)).await;
+        let mut ping_message = Message::ping_type(node_sending_ping);
+        ping_message.set_message_id(10);
+
+        let submit_result = executor.submit(ping_message).await;
+
         assert!(submit_result.is_ok());
 
         let message_response = submit_result.unwrap();
