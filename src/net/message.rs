@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::net::endpoint::Endpoint;
 use crate::net::message::Message::{
-    AddNode, FindNode, FindValue, FindValueReply, Ping, PingReply, ShutDown, Store,
+    AddNode, FindNode, FindNodeReply, FindValue, FindValueReply, Ping, PingReply, ShutDown, Store,
 };
 use crate::net::node::{Node, NodeId};
 use crate::store::KeyId;
@@ -50,7 +50,7 @@ pub(crate) enum MessageTypes {
     FindValue = 3,
     FindNode = 4,
     Ping = 5,
-    SendPingReply = 6,
+    PingReply = 6,
     Shutdown = 7,
 }
 
@@ -80,6 +80,10 @@ pub(crate) enum Message {
         source: Source,
         message_id: Option<MessageId>,
         node_id: NodeId,
+    },
+    FindNodeReply {
+        message_id: MessageId,
+        neighbors: Vec<Source>,
     },
     Ping {
         message_id: Option<MessageId>,
@@ -132,12 +136,21 @@ impl Message {
         }
     }
 
-    pub(crate) fn find_node_type(source: Node) -> Self {
-        let node_id = source.node_id();
+    pub(crate) fn find_node_type(source: Node, node_id: NodeId) -> Self {
         FindNode {
             source: Source::new(&source),
             message_id: None,
             node_id,
+        }
+    }
+
+    pub(crate) fn find_node_reply_type(
+        message_id: MessageId,
+        closest_neighbors: Vec<Source>,
+    ) -> Self {
+        FindNodeReply {
+            message_id,
+            neighbors: closest_neighbors,
         }
     }
 
@@ -173,6 +186,27 @@ impl Message {
         return false;
     }
 
+    pub(crate) fn is_find_node_type(&self) -> bool {
+        if let FindNode { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
+    pub(crate) fn is_find_node_reply_type(&self) -> bool {
+        if let FindNodeReply { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
+    pub(crate) fn is_ping_type(&self) -> bool {
+        if let Ping { .. } = self {
+            return true;
+        }
+        return false;
+    }
+
     pub(crate) fn is_ping_reply_type(&self) -> bool {
         if let PingReply { .. } = self {
             return true;
@@ -182,13 +216,6 @@ impl Message {
 
     pub(crate) fn is_shutdown_type(&self) -> bool {
         if let ShutDown = self {
-            return true;
-        }
-        return false;
-    }
-
-    pub(crate) fn is_ping_type(&self) -> bool {
-        if let Ping { .. } = self {
             return true;
         }
         return false;
@@ -227,18 +254,11 @@ impl Message {
         }
         return false;
     }
-
-    fn is_find_node_type(&self) -> bool {
-        if let FindNode { .. } = self {
-            return true;
-        }
-        return false;
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::id::{Id, EXPECTED_ID_LENGTH_IN_BYTES};
+    use crate::id::Id;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::{Message, Source};
     use crate::net::node::Node;
@@ -388,14 +408,14 @@ mod tests {
     #[test]
     fn serialize_deserialize_a_find_node_message() {
         let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
-        let find_node_type = Message::find_node_type(node);
+        let find_node_type = Message::find_node_type(node, Id::new(511u16.to_be_bytes().to_vec()));
         let serialized = find_node_type.serialize().unwrap();
         let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_find_node_type());
         match deserialized {
             Message::FindNode { node_id, .. } => {
-                assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, node_id.len())
+                assert_eq!(Id::new(511u16.to_be_bytes().to_vec()), node_id);
             }
             _ => {
                 panic!("Expected findNode type message, but was not");
@@ -418,7 +438,8 @@ mod tests {
     #[test]
     fn set_message_id_in_find_node() {
         let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
-        let mut find_node_type = Message::find_node_type(node);
+        let mut find_node_type =
+            Message::find_node_type(node, Id::new(511u16.to_be_bytes().to_vec()));
         find_node_type.set_message_id(100);
 
         assert!(find_node_type.is_find_node_type());

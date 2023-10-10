@@ -113,6 +113,38 @@ impl MessageAction for FindValueMessageAction {
     }
 }
 
+pub(crate) struct FindNodeAction {
+    routing_table: Arc<Table>,
+    async_network: Arc<AsyncNetwork>,
+}
+
+impl FindNodeAction {
+    pub(crate) fn new(routing_table: Arc<Table>, async_network: Arc<AsyncNetwork>) -> Self {
+        FindNodeAction {
+            routing_table,
+            async_network
+        }
+    }
+}
+
+#[async_trait]
+impl MessageAction for FindNodeAction {
+    async fn act_on(&self, message: Message) {
+        if let Message::FindNode { source, message_id, node_id } = message {
+            if message_id.is_none() {
+                warn!("received a FindNode message with an empty message id, skipping the processing");
+                return
+            }
+            //TODO: remove hardcoded 5
+            let neighbors = self.routing_table.closest_neighbors(&node_id, 5);
+            let sources: Vec<Source> = neighbors.all_nodes().iter().map(|node| Source::new(node)).collect();
+            let find_node_reply = Message::find_node_reply_type(message_id.unwrap(), sources);
+
+            let _ = self.async_network.send(find_node_reply, source.endpoint()).await;
+        }
+    }
+}
+
 pub(crate) struct AddNodeAction {
     current_node: Node,
     routing_table: Arc<Table>,
@@ -532,6 +564,84 @@ mod find_value_message_action_tests {
 
         message_action.act_on(message).await;
 
+        handle.await.unwrap();
+    }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod find_node_message_action_tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::net::TcpListener;
+
+    use crate::executor::message_action::{FindNodeAction, MessageAction};
+    use crate::id::Id;
+    use crate::net::AsyncNetwork;
+    use crate::net::connection::AsyncTcpConnection;
+    use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
+    use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::routing::Table;
+    use crate::time::SystemClock;
+
+    #[tokio::test]
+    async fn act_on_find_node_message() {
+        let listener_result = TcpListener::bind("localhost:9920").await;
+        assert!(listener_result.is_ok());
+
+        let handle = tokio::spawn(async move {
+            let tcp_listener = listener_result.unwrap();
+            let stream = tcp_listener.accept().await.unwrap();
+
+            let mut connection = AsyncTcpConnection::new(stream.0);
+            let message = connection.read().await.unwrap();
+
+            assert!(message.is_find_node_reply_type());
+            if let Message::FindNodeReply { message_id, neighbors, } = message {
+                assert_eq!(100, message_id);
+
+                assert_eq!(2, neighbors.len());
+                assert_eq!(&Id::new(249u16.to_be_bytes().to_vec()), neighbors.get(0).unwrap().node_id());
+                assert_eq!(&Id::new(247u16.to_be_bytes().to_vec()), neighbors.get(1).unwrap().node_id());
+            }
+        });
+
+        let async_network = AsyncNetwork::new(waiting_list());
+        let routing_table: Arc<Table> =
+            Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+
+        let message_action = FindNodeAction::new( routing_table.clone(), async_network);
+
+        routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 7070),
+                Id::new(247u16.to_be_bytes().to_vec()),
+            )
+        );
+        routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 8989),
+                Id::new(249u16.to_be_bytes().to_vec()),
+            )
+        );
+
+        let mut message = Message::find_node_type(
+            Node::new(
+                Endpoint::new("localhost".to_string(), 9920),
+            ),
+            Id::new(250u16.to_be_bytes().to_vec()),
+        );
+        message.set_message_id(100);
+
+        message_action.act_on(message).await;
         handle.await.unwrap();
     }
 
