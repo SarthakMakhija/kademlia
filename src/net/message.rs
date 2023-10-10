@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_a_find_value_reply_message_with_value() {
-        let mut find_value_reply_type =
+        let find_value_reply_type =
             Message::find_value_reply_type(10, Some("kademlia".as_bytes().to_vec()), None);
 
         let serialized = find_value_reply_type.serialize().unwrap();
@@ -372,7 +372,7 @@ mod tests {
         let mut neighbors = Vec::with_capacity(1);
         neighbors.push(Source::new(&node));
 
-        let mut find_value_reply_type = Message::find_value_reply_type(10, None, Some(neighbors));
+        let find_value_reply_type = Message::find_value_reply_type(10, None, Some(neighbors));
 
         let serialized = find_value_reply_type.serialize().unwrap();
         let deserialized = Message::deserialize_from(&serialized).unwrap();

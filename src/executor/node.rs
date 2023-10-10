@@ -21,13 +21,13 @@ pub(crate) struct AddNodeExecutor {
 }
 
 impl AddNodeExecutor {
-    pub(crate) fn new(current_node: Node, waiting_list: Arc<WaitingList>) -> Self {
+    pub(crate) fn new(current_node: Node, waiting_list: Arc<WaitingList>, routing_table: Arc<Table>) -> Self {
         //TODO: make 100 configurable
         let (sender, receiver) = mpsc::channel(100);
 
         let executor = AddNodeExecutor {
             sender,
-            routing_table: Arc::new(Table::new(current_node.node_id())),
+            routing_table,
             async_network: AsyncNetwork::new(waiting_list)
         };
         executor.start(receiver, current_node);
@@ -103,6 +103,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::routing::Table;
     use crate::time::SystemClock;
 
     #[tokio::test]
@@ -111,7 +112,8 @@ mod tests {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = AddNodeExecutor::new(node, waiting_list());
+        let node_id = node.node_id();
+        let executor = AddNodeExecutor::new(node, waiting_list(), Arc::new(Table::new(node_id)));
         let submit_result = executor
             .submit(Message::add_node_type(Node::new(Endpoint::new(
                 "localhost".to_string(),
@@ -128,7 +130,8 @@ mod tests {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = AddNodeExecutor::new(node, waiting_list());
+        let node_id = node.node_id();
+        let executor = AddNodeExecutor::new(node, waiting_list(), Arc::new(Table::new(node_id)));
         let submit_result = executor
             .submit(Message::add_node_type(Node::new(Endpoint::new(
                 "localhost".to_string(),
@@ -156,7 +159,8 @@ mod tests {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = Arc::new(AddNodeExecutor::new(node, waiting_list()));
+        let node_id = node.node_id();
+        let executor = Arc::new(AddNodeExecutor::new(node, waiting_list(), Arc::new(Table::new(node_id))));
         let executor_clone = executor.clone();
 
         let handle = tokio::spawn(async move {
@@ -213,7 +217,8 @@ mod tests {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = AddNodeExecutor::new(node, waiting_list());
+        let node_id = node.node_id();
+        let executor = AddNodeExecutor::new(node, waiting_list(), Arc::new(Table::new(node_id)));
 
         let submit_result = executor.shutdown().await;
         assert!(submit_result.is_ok());
