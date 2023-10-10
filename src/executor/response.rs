@@ -25,7 +25,7 @@ pub(crate) enum MessageStatus {
     StoreDone,
     FindValueDone,
     PingDone,
-    PingReplyDone,
+    ReplyDone,
     AddNodeDone,
     ShutdownDone,
 }

@@ -111,11 +111,12 @@ impl MessageExecutor {
 
                             let _ = channeled_message.send_response(MessageStatus::PingDone);
                         }
-                        Message::PingReply {message_id, ..} => {
-                            info!("working on ping reply message in MessageExecutor");
+                        Message::PingReply {message_id, ..} |
+                        Message:: FindValueReply {message_id, ..} => {
+                            info!("working on a reply message in MessageExecutor");
                             waiting_list.handle_response(message_id, Ok(channeled_message.message.clone()));
 
-                            let _ = channeled_message.send_response(MessageStatus::PingReplyDone);
+                            let _ = channeled_message.send_response(MessageStatus::ReplyDone);
                         }
                         Message::ShutDown => {
                             drop(receiver);
@@ -378,6 +379,7 @@ mod ping_message_executor {
             }
         }
     }
+
     #[tokio::test]
     async fn submit_ping_message_with_successful_reply() {
         let listener_result = TcpListener::bind("localhost:7565").await;
@@ -454,16 +456,49 @@ mod find_value_message_executor {
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::net::TcpListener;
+    use crate::executor::message::find_value_message_executor::setup::TestCallback;
     use crate::executor::message::MessageExecutor;
     use crate::id::Id;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
-    use crate::net::message::Message;
+    use crate::net::message::{Message, MessageId};
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::routing::Table;
     use crate::store::{InMemoryStore, Key, Store};
     use crate::time::SystemClock;
+
+    mod setup {
+        use crate::net::callback::{Callback, ResponseError};
+        use std::any::Any;
+        use std::sync::{Arc, Mutex};
+
+        use crate::net::message::Message;
+
+        pub(crate) struct TestCallback {
+            pub(crate) responses: Mutex<Vec<Message>>,
+        }
+
+        impl TestCallback {
+            pub(crate) fn new() -> Arc<TestCallback> {
+                Arc::new(TestCallback {
+                    responses: Mutex::new(Vec::new()),
+                })
+            }
+        }
+
+        impl Callback for TestCallback {
+            fn on_response(&self, response: Result<Message, ResponseError>) {
+                if response.is_ok() {
+                    self.responses.lock().unwrap().push(response.unwrap());
+                }
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+    }
 
     #[tokio::test]
     async fn submit_find_value_message_with_the_value_in_store() {
@@ -503,6 +538,34 @@ mod find_value_message_executor {
 
         submit_result.unwrap().wait_until_response_is_received().await.unwrap();
         handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn submit_find_value_reply() {
+        let store = Arc::new(InMemoryStore::new());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
+
+        let node_id = node.node_id();
+        let waiting_list = waiting_list();
+        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Arc::new(Table::new(node_id)));
+
+        let message_id: MessageId = 100;
+        let callback = TestCallback::new();
+        waiting_list.add(message_id, callback.clone());
+
+        let find_value_reply = Message::find_value_reply_type(
+            message_id, Some("kademlia".as_bytes().to_vec()), None
+        );
+
+        let submit_result = executor.submit(find_value_reply).await;
+        assert!(submit_result.is_ok());
+
+        let _ = submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+
+        let response_guard = callback.responses.lock().unwrap();
+        let message = response_guard.get(0).unwrap();
+
+        assert!(message.is_find_value_reply_type());
     }
 
     fn waiting_list() -> Arc<WaitingList> {
