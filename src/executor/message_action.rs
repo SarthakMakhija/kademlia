@@ -21,8 +21,8 @@ pub(crate) struct StoreKeyValueMessageAction {
 }
 
 impl StoreKeyValueMessageAction {
-    pub(crate) fn new(store: Arc<dyn Store>) -> Self {
-        StoreKeyValueMessageAction { store }
+    pub(crate) fn new(store: Arc<dyn Store>) -> Box<Self> {
+        Box::new(StoreKeyValueMessageAction { store })
     }
 }
 
@@ -45,11 +45,11 @@ pub(crate) struct SendPingReplyMessageAction {
 }
 
 impl SendPingReplyMessageAction {
-    pub(crate) fn new(current_node: Node, async_network: Arc<AsyncNetwork>) -> Self {
-        SendPingReplyMessageAction {
+    pub(crate) fn new(current_node: Node, async_network: Arc<AsyncNetwork>) -> Box<Self> {
+        Box::new(SendPingReplyMessageAction {
             current_node,
             async_network,
-        }
+        })
     }
 }
 
@@ -81,12 +81,12 @@ pub(crate) struct FindValueMessageAction {
 }
 
 impl FindValueMessageAction {
-    pub(crate) fn new(store: Arc<dyn Store>, routing_table: Arc<Table>,  async_network: Arc<AsyncNetwork>) -> Self {
-        FindValueMessageAction {
+    pub(crate) fn new(store: Arc<dyn Store>, routing_table: Arc<Table>,  async_network: Arc<AsyncNetwork>) -> Box<Self> {
+        Box::new(FindValueMessageAction {
             store,
             routing_table,
             async_network
-        }
+        })
     }
 }
 
@@ -119,11 +119,11 @@ pub(crate) struct FindNodeMessageAction {
 }
 
 impl FindNodeMessageAction {
-    pub(crate) fn new(routing_table: Arc<Table>, async_network: Arc<AsyncNetwork>) -> Self {
-        FindNodeMessageAction {
+    pub(crate) fn new(routing_table: Arc<Table>, async_network: Arc<AsyncNetwork>) -> Box<Self> {
+        Box::new(FindNodeMessageAction {
             routing_table,
             async_network
-        }
+        })
     }
 }
 
@@ -156,12 +156,12 @@ impl AddNodeAction {
         current_node: Node,
         routing_table: Arc<Table>,
         async_network: Arc<AsyncNetwork>,
-    ) -> Self {
-        AddNodeAction {
+    ) -> Box<Self> {
+        Box::new(AddNodeAction {
             current_node,
             routing_table,
             async_network,
-        }
+        })
     }
 
     async fn send_ping_to(&self, node: &Node, callback: &Arc<ResponseAwaitingCallback>) -> Result<(), NetworkErrorKind> {

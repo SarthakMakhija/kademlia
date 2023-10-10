@@ -65,19 +65,19 @@ impl MessageExecutor {
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
         action_by_message.insert(
             MessageTypes::Store,
-            Box::new(StoreKeyValueMessageAction::new(store.clone())),
+            StoreKeyValueMessageAction::new(store.clone()),
         );
         action_by_message.insert(
             MessageTypes::Ping,
-            Box::new(SendPingReplyMessageAction::new(current_node, self.async_network.clone())),
+            SendPingReplyMessageAction::new(current_node, self.async_network.clone()),
         );
         action_by_message.insert(
             MessageTypes::FindValue,
-            Box::new(FindValueMessageAction::new(store, routing_table.clone(), self.async_network.clone()))
+            FindValueMessageAction::new(store, routing_table.clone(), self.async_network.clone())
         );
         action_by_message.insert(
             MessageTypes::FindNode,
-            Box::new(FindNodeMessageAction::new(routing_table, self.async_network.clone()))
+            FindNodeMessageAction::new(routing_table, self.async_network.clone())
         );
 
         let waiting_list = self.waiting_list.clone();

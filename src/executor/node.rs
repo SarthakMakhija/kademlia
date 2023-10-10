@@ -56,7 +56,7 @@ impl AddNodeExecutor {
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
         action_by_message.insert(
             MessageTypes::AddNode,
-            Box::new(AddNodeAction::new(current_node, routing_table, async_network)),
+            AddNodeAction::new(current_node, routing_table, async_network),
         );
 
         tokio::spawn(async move {
