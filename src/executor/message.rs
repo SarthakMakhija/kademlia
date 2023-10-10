@@ -452,6 +452,7 @@ mod ping_message_executor {
     }
 }
 
+#[cfg(test)]
 mod find_value_message_executor {
     use std::sync::Arc;
     use std::time::Duration;

@@ -98,6 +98,7 @@ impl MessageAction for FindValueMessageAction {
                 return
             }
             let find_value_reply = match self.store.get(&key) {
+                //TODO: remove hardcoded 5
                 None => {
                     let neighbors = self.routing_table.closest_neighbors(&key_id, 5);
                     let sources: Vec<Source> = neighbors.all_nodes().iter().map(|node| Source::new(node)).collect();

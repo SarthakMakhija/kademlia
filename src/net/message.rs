@@ -77,6 +77,7 @@ pub(crate) enum Message {
         neighbors: Option<Vec<Source>>,
     },
     FindNode {
+        source: Source,
         message_id: Option<MessageId>,
         node_id: NodeId,
     },
@@ -140,8 +141,10 @@ impl Message {
         }
     }
 
-    pub(crate) fn find_node_type(node_id: NodeId) -> Self {
+    pub(crate) fn find_node_type(source: Node) -> Self {
+        let node_id = source.node_id();
         FindNode {
+            source: Source::new(&source),
             message_id: None,
             node_id,
         }
@@ -253,7 +256,7 @@ mod tests {
     use crate::id::{Id, EXPECTED_ID_LENGTH_IN_BYTES};
     use crate::net::endpoint::Endpoint;
     use crate::net::message::{Message, Source};
-    use crate::net::node::{Node, NodeId};
+    use crate::net::node::Node;
 
     #[test]
     fn serialize_deserialize_a_store_message() {
@@ -399,17 +402,14 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_a_find_node_message() {
-        let find_node_type =
-            Message::find_node_type(NodeId::generate_from("localhost:8989".to_string()));
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let find_node_type = Message::find_node_type(node);
         let serialized = find_node_type.serialize().unwrap();
         let deserialized = Message::deserialize_from(&serialized).unwrap();
 
         assert!(deserialized.is_find_node_type());
         match deserialized {
-            Message::FindNode {
-                message_id: _,
-                node_id,
-            } => {
+            Message::FindNode { node_id, .. } => {
                 assert_eq!(EXPECTED_ID_LENGTH_IN_BYTES, node_id.len())
             }
             _ => {
@@ -432,8 +432,8 @@ mod tests {
 
     #[test]
     fn set_message_id_in_find_node() {
-        let mut find_node_type =
-            Message::find_node_type(NodeId::generate_from("localhost:8989".to_string()));
+        let node = Node::new(Endpoint::new("localhost".to_string(), 1010));
+        let mut find_node_type = Message::find_node_type(node);
         find_node_type.set_message_id(100);
 
         assert!(find_node_type.is_find_node_type());
