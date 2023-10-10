@@ -6,7 +6,7 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::executor::message_action::{FindNodeMessageAction, FindValueMessageAction, MessageAction, PingMessageAction, StoreMessageAction};
+use crate::executor::message_action::{FindNodeMessageAction, FindValueMessageAction, MessageAction, SendPingReplyMessageAction, StoreKeyValueMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::net::message::{Message, MessageTypes};
 use crate::net::node::Node;
@@ -65,11 +65,11 @@ impl MessageExecutor {
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
         action_by_message.insert(
             MessageTypes::Store,
-            Box::new(StoreMessageAction::new(store.clone())),
+            Box::new(StoreKeyValueMessageAction::new(store.clone())),
         );
         action_by_message.insert(
             MessageTypes::Ping,
-            Box::new(PingMessageAction::new(current_node, self.async_network.clone())),
+            Box::new(SendPingReplyMessageAction::new(current_node, self.async_network.clone())),
         );
         action_by_message.insert(
             MessageTypes::FindValue,
