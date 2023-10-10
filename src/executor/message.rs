@@ -6,12 +6,13 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::executor::message_action::{MessageAction, PingMessageAction, StoreMessageAction};
+use crate::executor::message_action::{FindValueMessageAction, MessageAction, PingMessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::net::message::{Message, MessageTypes};
 use crate::net::node::Node;
 use crate::net::wait::WaitingList;
 use crate::net::AsyncNetwork;
+use crate::routing::Table;
 use crate::store::Store;
 
 pub(crate) struct MessageExecutor {
@@ -25,6 +26,7 @@ impl MessageExecutor {
         current_node: Node,
         store: Arc<dyn Store>,
         waiting_list: Arc<WaitingList>,
+        routing_table: Arc<Table>,
     ) -> Self {
         //TODO: make 100 configurable
         let (sender, receiver) = mpsc::channel(100);
@@ -34,7 +36,7 @@ impl MessageExecutor {
             waiting_list: waiting_list.clone(),
             async_network: AsyncNetwork::new(waiting_list),
         };
-        executor.start(current_node, receiver, store);
+        executor.start(current_node, receiver, store, routing_table);
         executor
     }
 
@@ -58,20 +60,23 @@ impl MessageExecutor {
         current_node: Node,
         mut receiver: Receiver<ChanneledMessage>,
         store: Arc<dyn Store>,
+        routing_table: Arc<Table>,
     ) {
-        let async_network = self.async_network.clone();
-        let waiting_list = self.waiting_list.clone();
-
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
         action_by_message.insert(
             MessageTypes::Store,
-            Box::new(StoreMessageAction::new(store)),
+            Box::new(StoreMessageAction::new(store.clone())),
         );
         action_by_message.insert(
             MessageTypes::Ping,
-            Box::new(PingMessageAction::new(current_node, async_network)),
+            Box::new(PingMessageAction::new(current_node, self.async_network.clone())),
+        );
+        action_by_message.insert(
+            MessageTypes::FindValue,
+            Box::new(FindValueMessageAction::new(store, routing_table, self.async_network.clone()))
         );
 
+        let waiting_list = self.waiting_list.clone();
         tokio::spawn(async move {
             loop {
                 match receiver.recv().await {
@@ -85,6 +90,16 @@ impl MessageExecutor {
                                 .await;
 
                             let _ = channeled_message.send_response(MessageStatus::StoreDone);
+                        }
+                        Message::FindValue { .. } => {
+                            info!("working on findValue message in MessageExecutor");
+                            action_by_message
+                                .get(&MessageTypes::FindValue)
+                                .unwrap()
+                                .act_on(channeled_message.message.clone())
+                                .await;
+
+                            let _ = channeled_message.send_response(MessageStatus::FindValueDone);
                         }
                         Message::Ping { .. } => {
                             info!("working on ping message in MessageExecutor");
@@ -133,6 +148,7 @@ mod store_message_executor {
     use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::routing::Table;
     use crate::store::{InMemoryStore, Store};
     use crate::time::SystemClock;
 
@@ -143,7 +159,9 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
+        let node_id = node.node_id();
+
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
         let submit_result = executor
             .submit(Message::store_type(
                 "kademlia".as_bytes().to_vec(),
@@ -161,7 +179,8 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
+        let node_id = node.node_id();
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -187,7 +206,8 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
+        let node_id = node.node_id();
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -222,7 +242,8 @@ mod store_message_executor {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
 
-        let executor = Arc::new(MessageExecutor::new(node, store.clone(), waiting_list()));
+        let node_id = node.node_id();
+        let executor = Arc::new(MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id))));
         let executor_clone = executor.clone();
         let store_clone = store.clone();
 
@@ -280,7 +301,8 @@ mod store_message_executor {
             Endpoint::new("localhost".to_string(), 9090),
             Id::new(255u16.to_be_bytes().to_vec()),
         );
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
+        let node_id = node.node_id();
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
 
         let submit_result = executor.shutdown().await;
         assert!(submit_result.is_ok());
@@ -321,6 +343,7 @@ mod ping_message_executor {
     use crate::net::message::{Message, MessageId};
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::routing::Table;
     use crate::store::InMemoryStore;
     use crate::time::SystemClock;
 
@@ -375,7 +398,8 @@ mod ping_message_executor {
 
         let store = Arc::new(InMemoryStore::new());
         let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list());
+        let node_id = node.node_id();
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 7565));
         let mut ping_message = Message::ping_type(node_sending_ping);
@@ -397,8 +421,9 @@ mod ping_message_executor {
         let store = Arc::new(InMemoryStore::new());
         let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
 
+        let node_id = node.node_id();
         let waiting_list = waiting_list();
-        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone());
+        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Arc::new(Table::new(node_id)));
 
         let message_id: MessageId = 100;
         let callback = TestCallback::new();
@@ -415,6 +440,69 @@ mod ping_message_executor {
         let message = response_guard.get(0).unwrap();
 
         assert!(message.is_ping_reply_type());
+    }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        )
+    }
+}
+
+mod find_value_message_executor {
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::net::TcpListener;
+    use crate::executor::message::MessageExecutor;
+    use crate::id::Id;
+    use crate::net::connection::AsyncTcpConnection;
+    use crate::net::endpoint::Endpoint;
+    use crate::net::message::Message;
+    use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::routing::Table;
+    use crate::store::{InMemoryStore, Key, Store};
+    use crate::time::SystemClock;
+
+    #[tokio::test]
+    async fn submit_find_value_message_with_the_value_in_store() {
+        let listener_result = TcpListener::bind("localhost:9818").await;
+        assert!(listener_result.is_ok());
+
+        let handle = tokio::spawn(async move {
+            let tcp_listener = listener_result.unwrap();
+            let stream = tcp_listener.accept().await.unwrap();
+
+            let mut connection = AsyncTcpConnection::new(stream.0);
+            let message = connection.read().await.unwrap();
+
+            assert!(message.is_find_value_reply_type());
+            if let Message::FindValueReply { value, .. } = message {
+                assert_eq!(value.unwrap(), "distributed hash table".as_bytes().to_vec());
+            }
+        });
+
+        let store = Arc::new(InMemoryStore::new());
+        store.put_or_update(Key::new("kademlia".as_bytes().to_vec()), "distributed hash table".as_bytes().to_vec());
+
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 9090),
+            Id::new(255u16.to_be_bytes().to_vec()),
+        );
+        let node_id = node.node_id();
+
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
+
+        let mut find_value_message = Message::find_value_type(
+            Node::new(Endpoint::new("localhost".to_string(), 9818)), "kademlia".as_bytes().to_vec());
+        find_value_message.set_message_id(100);
+
+        let submit_result = executor.submit(find_value_message).await;
+        assert!(submit_result.is_ok());
+
+        submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+        handle.await.unwrap();
     }
 
     fn waiting_list() -> Arc<WaitingList> {
