@@ -62,23 +62,7 @@ impl MessageExecutor {
         store: Arc<dyn Store>,
         routing_table: Arc<Table>,
     ) {
-        let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
-        action_by_message.insert(
-            MessageTypes::Store,
-            StoreKeyValueMessageAction::new(store.clone()),
-        );
-        action_by_message.insert(
-            MessageTypes::Ping,
-            SendPingReplyMessageAction::new(current_node, self.async_network.clone()),
-        );
-        action_by_message.insert(
-            MessageTypes::FindValue,
-            FindValueMessageAction::new(store, routing_table.clone(), self.async_network.clone())
-        );
-        action_by_message.insert(
-            MessageTypes::FindNode,
-            FindNodeMessageAction::new(routing_table, self.async_network.clone())
-        );
+        let action_by_message = self.message_actions(current_node, store, routing_table);
 
         let waiting_list = self.waiting_list.clone();
         tokio::spawn(async move {
@@ -150,6 +134,27 @@ impl MessageExecutor {
                 }
             }
         });
+    }
+
+    fn message_actions(&self, current_node: Node, store: Arc<dyn Store>, routing_table: Arc<Table>) -> HashMap<MessageTypes, Box<dyn MessageAction>> {
+        let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
+        action_by_message.insert(
+            MessageTypes::Store,
+            StoreKeyValueMessageAction::new(store.clone()),
+        );
+        action_by_message.insert(
+            MessageTypes::Ping,
+            SendPingReplyMessageAction::new(current_node, self.async_network.clone()),
+        );
+        action_by_message.insert(
+            MessageTypes::FindValue,
+            FindValueMessageAction::new(store, routing_table.clone(), self.async_network.clone())
+        );
+        action_by_message.insert(
+            MessageTypes::FindNode,
+            FindNodeMessageAction::new(routing_table, self.async_network.clone())
+        );
+        action_by_message
     }
 }
 
