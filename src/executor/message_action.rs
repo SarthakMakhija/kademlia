@@ -113,14 +113,14 @@ impl MessageAction for FindValueMessageAction {
     }
 }
 
-pub(crate) struct FindNodeAction {
+pub(crate) struct FindNodeMessageAction {
     routing_table: Arc<Table>,
     async_network: Arc<AsyncNetwork>,
 }
 
-impl FindNodeAction {
+impl FindNodeMessageAction {
     pub(crate) fn new(routing_table: Arc<Table>, async_network: Arc<AsyncNetwork>) -> Self {
-        FindNodeAction {
+        FindNodeMessageAction {
             routing_table,
             async_network
         }
@@ -128,7 +128,7 @@ impl FindNodeAction {
 }
 
 #[async_trait]
-impl MessageAction for FindNodeAction {
+impl MessageAction for FindNodeMessageAction {
     async fn act_on(&self, message: Message) {
         if let Message::FindNode { source, message_id, node_id } = message {
             if message_id.is_none() {
@@ -581,7 +581,7 @@ mod find_node_message_action_tests {
     use std::time::Duration;
     use tokio::net::TcpListener;
 
-    use crate::executor::message_action::{FindNodeAction, MessageAction};
+    use crate::executor::message_action::{FindNodeMessageAction, MessageAction};
     use crate::id::Id;
     use crate::net::AsyncNetwork;
     use crate::net::connection::AsyncTcpConnection;
@@ -618,7 +618,7 @@ mod find_node_message_action_tests {
         let routing_table: Arc<Table> =
             Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
 
-        let message_action = FindNodeAction::new( routing_table.clone(), async_network);
+        let message_action = FindNodeMessageAction::new(routing_table.clone(), async_network);
 
         routing_table.add(
             Node::new_with_id(

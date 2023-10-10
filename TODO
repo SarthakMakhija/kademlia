@@ -10,20 +10,27 @@
     - AsyncNetwork to support method which can put an entry in waiting list - done
     - decide if this needs arc - done
 0. Add node as RPC (?): By 8th Oct
-1. Methods for clone and use those clone methods: By 8th Oct
 ------
-0. FindNode: By 8th Oct
-0. FindValue: By 8th Oct
-3. Provide support for findValue in executor: By 8th Oct
+0. FindValue: By 15th Oct - done
+0. Refactor message/executor and node/executor to accept Arc<RoutingTable>: By 15th Oct - done
+3. Provide support for findValue in executor: By 15th Oct - done
+4. FindValueReply: By 15th Oct - done
+5. Rename all message actions:
+6. Refactor action registration code into action registration
 
+0. FindNode: By 15th Oct
+0. FindNodeReply: By 15th Oct
+2. Server: By 15th Oct
+1. Methods for clone and use those clone methods: By 15th Oct
+------
+0. Shutdown server
 4. Go through Kademlia blog/paper once
 0. See if there are gaps in what has been built (like LRU for nodes in a bucket)
-1. Iterate find
-2. Server
 5. Remove node?
-6. Node health check
-8. Replication
+1. Iterate find
+    - Replication
 9. Documentation
 10. E2E
 11. Client
 12. Blog
+6. Node health check

@@ -6,7 +6,7 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::executor::message_action::{FindValueMessageAction, MessageAction, PingMessageAction, StoreMessageAction};
+use crate::executor::message_action::{FindNodeMessageAction, FindValueMessageAction, MessageAction, PingMessageAction, StoreMessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::net::message::{Message, MessageTypes};
 use crate::net::node::Node;
@@ -73,7 +73,11 @@ impl MessageExecutor {
         );
         action_by_message.insert(
             MessageTypes::FindValue,
-            Box::new(FindValueMessageAction::new(store, routing_table, self.async_network.clone()))
+            Box::new(FindValueMessageAction::new(store, routing_table.clone(), self.async_network.clone()))
+        );
+        action_by_message.insert(
+            MessageTypes::FindNode,
+            Box::new(FindNodeMessageAction::new(routing_table, self.async_network.clone()))
         );
 
         let waiting_list = self.waiting_list.clone();
@@ -101,6 +105,16 @@ impl MessageExecutor {
 
                             let _ = channeled_message.send_response(MessageStatus::FindValueDone);
                         }
+                        Message::FindNode { .. } => {
+                            info!("working on findNode message in MessageExecutor");
+                            action_by_message
+                                .get(&MessageTypes::FindNode)
+                                .unwrap()
+                                .act_on(channeled_message.message.clone())
+                                .await;
+
+                            let _ = channeled_message.send_response(MessageStatus::FindValueDone);
+                        }
                         Message::Ping { .. } => {
                             info!("working on ping message in MessageExecutor");
                             action_by_message
@@ -111,8 +125,9 @@ impl MessageExecutor {
 
                             let _ = channeled_message.send_response(MessageStatus::PingDone);
                         }
-                        Message::PingReply {message_id, ..} |
-                        Message:: FindValueReply {message_id, ..} => {
+                        Message::PingReply { message_id, ..} |
+                        Message::FindValueReply { message_id, ..} |
+                        Message::FindNodeReply { message_id, .. }=> {
                             info!("working on a reply message in MessageExecutor");
                             waiting_list.handle_response(message_id, Ok(channeled_message.message.clone()));
 
@@ -567,6 +582,140 @@ mod find_value_message_executor {
         let message = response_guard.get(0).unwrap();
 
         assert!(message.is_find_value_reply_type());
+    }
+
+    fn waiting_list() -> Arc<WaitingList> {
+        WaitingList::new(
+            WaitingListOptions::new(Duration::from_secs(120), Duration::from_millis(100)),
+            SystemClock::new(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod find_node_message_executor {
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::net::TcpListener;
+    use crate::executor::message::find_node_message_executor::setup::TestCallback;
+    use crate::executor::message::MessageExecutor;
+    use crate::id::Id;
+    use crate::net::connection::AsyncTcpConnection;
+    use crate::net::endpoint::Endpoint;
+    use crate::net::message::{Message, MessageId};
+    use crate::net::node::Node;
+    use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::routing::Table;
+    use crate::store::InMemoryStore;
+    use crate::time::SystemClock;
+
+    mod setup {
+        use crate::net::callback::{Callback, ResponseError};
+        use std::any::Any;
+        use std::sync::{Arc, Mutex};
+
+        use crate::net::message::Message;
+
+        pub(crate) struct TestCallback {
+            pub(crate) responses: Mutex<Vec<Message>>,
+        }
+
+        impl TestCallback {
+            pub(crate) fn new() -> Arc<TestCallback> {
+                Arc::new(TestCallback {
+                    responses: Mutex::new(Vec::new()),
+                })
+            }
+        }
+
+        impl Callback for TestCallback {
+            fn on_response(&self, response: Result<Message, ResponseError>) {
+                if response.is_ok() {
+                    self.responses.lock().unwrap().push(response.unwrap());
+                }
+            }
+
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn submit_find_node_message() {
+        let listener_result = TcpListener::bind("localhost:9808").await;
+        assert!(listener_result.is_ok());
+
+        let handle = tokio::spawn(async move {
+            let tcp_listener = listener_result.unwrap();
+            let stream = tcp_listener.accept().await.unwrap();
+
+            let mut connection = AsyncTcpConnection::new(stream.0);
+            let message = connection.read().await.unwrap();
+
+            assert!(message.is_find_node_reply_type());
+            if let Message::FindNodeReply { neighbors, .. } = message {
+                assert_eq!(1, neighbors.len());
+                assert_eq!("localhost:7070", neighbors[0].endpoint().address());
+            }
+        });
+
+        let node = Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 9808),
+            Id::new(255u16.to_be_bytes().to_vec()),
+        );
+
+        let store = Arc::new(InMemoryStore::new());
+        let node_id = node.node_id();
+        let routing_table = Arc::new(Table::new(node_id));
+        let executor = MessageExecutor::new(node, store, waiting_list(), routing_table.clone());
+        routing_table.add(
+            Node::new_with_id(
+                Endpoint::new("localhost".to_string(), 7070),
+                Id::new(247u16.to_be_bytes().to_vec()),
+            )
+        );
+
+        let mut find_node_message = Message::find_node_type(
+            Node::new(Endpoint::new("localhost".to_string(), 9808)),
+            Id::new(255u16.to_be_bytes().to_vec())
+        );
+        find_node_message.set_message_id(100);
+
+        let submit_result = executor.submit(find_node_message).await;
+        assert!(submit_result.is_ok());
+
+        submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+        handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn submit_find_node_reply() {
+        let store = Arc::new(InMemoryStore::new());
+        let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
+
+        let node_id = node.node_id();
+        let waiting_list = waiting_list();
+        let executor = MessageExecutor::new(node.clone(), store, waiting_list.clone(), Arc::new(Table::new(node_id)));
+
+        let message_id: MessageId = 100;
+        let callback = TestCallback::new();
+        waiting_list.add(message_id, callback.clone());
+
+        let closest_neighbors = Vec::new();
+        let find_value_reply = Message::find_node_reply_type(
+            message_id, closest_neighbors
+        );
+
+        let submit_result = executor.submit(find_value_reply).await;
+        assert!(submit_result.is_ok());
+
+        let _ = submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+
+        let response_guard = callback.responses.lock().unwrap();
+        let message= response_guard.get(0).unwrap();
+
+        assert!(message.is_find_node_reply_type());
     }
 
     fn waiting_list() -> Arc<WaitingList> {
