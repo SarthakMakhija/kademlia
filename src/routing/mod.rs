@@ -1,4 +1,4 @@
-use std::sync::{RwLock, RwLockWriteGuard};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 use log::info;
 
@@ -17,19 +17,19 @@ pub(crate) struct Table {
 }
 
 impl Table {
-    pub(crate) fn new(node_id: NodeId) -> Self {
+    pub(crate) fn new(node_id: NodeId) -> Arc<Self> {
         Self::new_with_bucket_capacity(node_id, MAX_BUCKET_CAPACITY)
     }
 
-    pub(crate) fn new_with_bucket_capacity(node_id: NodeId, bucket_capacity: usize) -> Self {
+    pub(crate) fn new_with_bucket_capacity(node_id: NodeId, bucket_capacity: usize) -> Arc<Self> {
         let mut buckets = Vec::with_capacity(node_id.id_length_in_bits);
         (0..node_id.id_length_in_bits).for_each(|_| buckets.push(RwLock::new(Vec::new())));
 
-        Table {
+        Arc::new(Table {
             buckets,
             node_id,
             max_bucket_capacity: bucket_capacity,
-        }
+        })
     }
 
     pub(crate) fn add(&self, node: Node) -> (usize, bool) {

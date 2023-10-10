@@ -320,7 +320,7 @@ mod add_node_action_tests {
     async fn act_on_add_node_message_and_add_the_node_in_routing_table() {
         let async_network = AsyncNetwork::new(waiting_list());
         let routing_table: Arc<Table> =
-            Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let message_action = AddNodeAction::new(
             Node::new_with_id(
@@ -350,7 +350,7 @@ mod add_node_action_tests {
     async fn act_on_add_node_message_given_the_bucket_capacity_is_full() {
         let async_network = AsyncNetwork::new(waiting_list());
         let routing_table: Arc<Table> =
-            Arc::new(Table::new_with_bucket_capacity(Id::new(255u16.to_be_bytes().to_vec()), 1));
+            Table::new_with_bucket_capacity(Id::new(255u16.to_be_bytes().to_vec()), 1);
 
         let message_action = AddNodeAction::new(
             Node::new_with_id(
@@ -402,7 +402,7 @@ mod add_node_action_tests {
 
         let async_network = AsyncNetwork::new(waiting_list);
         let routing_table: Arc<Table> =
-            Arc::new(Table::new_with_bucket_capacity(Id::new(255u16.to_be_bytes().to_vec()), 1));
+            Table::new_with_bucket_capacity(Id::new(255u16.to_be_bytes().to_vec()), 1);
 
         let message_action = AddNodeAction::new(
             Node::new_with_id(
@@ -489,7 +489,7 @@ mod find_value_message_action_tests {
 
         let async_network = AsyncNetwork::new(waiting_list());
         let routing_table: Arc<Table> =
-            Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
         let message_action = FindValueMessageAction::new(store.clone(), routing_table, async_network);
@@ -535,7 +535,7 @@ mod find_value_message_action_tests {
 
         let async_network = AsyncNetwork::new(waiting_list());
         let routing_table: Arc<Table> =
-            Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
         let message_action = FindValueMessageAction::new(store, routing_table.clone(), async_network);
@@ -616,7 +616,7 @@ mod find_node_message_action_tests {
 
         let async_network = AsyncNetwork::new(waiting_list());
         let routing_table: Arc<Table> =
-            Arc::new(Table::new(Id::new(255u16.to_be_bytes().to_vec())));
+            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let message_action = FindNodeMessageAction::new(routing_table.clone(), async_network);
 

@@ -182,7 +182,7 @@ mod store_message_executor {
         );
         let node_id = node.node_id();
 
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
         let submit_result = executor
             .submit(Message::store_type(
                 "kademlia".as_bytes().to_vec(),
@@ -201,7 +201,7 @@ mod store_message_executor {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -228,7 +228,7 @@ mod store_message_executor {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -264,7 +264,7 @@ mod store_message_executor {
         );
 
         let node_id = node.node_id();
-        let executor = Arc::new(MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id))));
+        let executor = Arc::new(MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id)));
         let executor_clone = executor.clone();
         let store_clone = store.clone();
 
@@ -323,7 +323,7 @@ mod store_message_executor {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let submit_result = executor.shutdown().await;
         assert!(submit_result.is_ok());
@@ -421,7 +421,7 @@ mod ping_message_executor {
         let store = Arc::new(InMemoryStore::new());
         let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 7565));
         let mut ping_message = Message::ping_type(node_sending_ping);
@@ -445,7 +445,7 @@ mod ping_message_executor {
 
         let node_id = node.node_id();
         let waiting_list = waiting_list();
-        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Table::new(node_id));
 
         let message_id: MessageId = 100;
         let callback = TestCallback::new();
@@ -548,7 +548,7 @@ mod find_value_message_executor {
         );
         let node_id = node.node_id();
 
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let mut find_value_message = Message::find_value_type(
             Node::new(Endpoint::new("localhost".to_string(), 9818)), "kademlia".as_bytes().to_vec());
@@ -568,7 +568,7 @@ mod find_value_message_executor {
 
         let node_id = node.node_id();
         let waiting_list = waiting_list();
-        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Table::new(node_id));
 
         let message_id: MessageId = 100;
         let callback = TestCallback::new();
@@ -672,7 +672,7 @@ mod find_node_message_executor {
 
         let store = Arc::new(InMemoryStore::new());
         let node_id = node.node_id();
-        let routing_table = Arc::new(Table::new(node_id));
+        let routing_table = Table::new(node_id);
         let executor = MessageExecutor::new(node, store, waiting_list(), routing_table.clone());
         routing_table.add(
             Node::new_with_id(
@@ -701,7 +701,7 @@ mod find_node_message_executor {
 
         let node_id = node.node_id();
         let waiting_list = waiting_list();
-        let executor = MessageExecutor::new(node.clone(), store, waiting_list.clone(), Arc::new(Table::new(node_id)));
+        let executor = MessageExecutor::new(node.clone(), store, waiting_list.clone(), Table::new(node_id));
 
         let message_id: MessageId = 100;
         let callback = TestCallback::new();
