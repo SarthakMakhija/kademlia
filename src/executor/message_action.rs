@@ -62,10 +62,11 @@ impl MessageAction for PingMessageAction {
 
             tokio::spawn(async move {
                 assert!(message_id.is_some());
+                let send_to = from.endpoint();
                 let _ = async_network
                     .send(
                         Message::ping_reply_type(current_node, message_id.unwrap()),
-                        from.endpoint(),
+                        send_to
                     )
                     .await;
             });
@@ -239,7 +240,7 @@ mod ping_message_action_tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::PingReply { to, .. } = message {
+            if let Message::PingReply { current_node: to, .. } = message {
                 assert_eq!("localhost:7878", to.endpoint().address());
             }
         });

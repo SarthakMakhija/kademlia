@@ -393,8 +393,8 @@ mod ping_message_executor {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::PingReply { to, .. } = message {
-                assert_eq!("localhost:9090", to.endpoint().address());
+            if let Message::PingReply { current_node: from, .. } = message {
+                assert_eq!("localhost:9090", from.endpoint().address());
             }
         });
 

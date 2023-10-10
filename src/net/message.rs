@@ -87,7 +87,7 @@ pub(crate) enum Message {
     },
     PingReply {
         message_id: MessageId,
-        to: Source,
+        current_node: Source,
     },
     ShutDown,
 }
@@ -99,29 +99,20 @@ impl Message {
             key,
             key_id,
             value,
-            source: Source {
-                node_endpoint: source.endpoint,
-                node_id: source.id,
-            },
+            source: Source::new(&source),
         }
     }
 
     pub(crate) fn add_node_type(source: Node) -> Self {
         AddNode {
-            source: Source {
-                node_endpoint: source.endpoint,
-                node_id: source.id,
-            },
+            source: Source::new(&source),
         }
     }
 
     pub(crate) fn find_value_type(source: Node, key: Vec<u8>) -> Self {
         let key_id = KeyId::generate_from_bytes(&key);
         FindValue {
-            source: Source {
-                node_endpoint: source.endpoint,
-                node_id: source.id,
-            },
+            source: Source::new(&source),
             message_id: None,
             key,
             key_id,
@@ -153,20 +144,14 @@ impl Message {
     pub(crate) fn ping_type(current_node: Node) -> Self {
         Ping {
             message_id: None,
-            from: Source {
-                node_endpoint: current_node.endpoint,
-                node_id: current_node.id,
-            },
+            from: Source::new(&current_node),
         }
     }
 
     pub(crate) fn ping_reply_type(current_node: Node, message_id: MessageId) -> Self {
         PingReply {
             message_id,
-            to: Source {
-                node_endpoint: current_node.endpoint,
-                node_id: current_node.id,
-            },
+            current_node: Source::new(&current_node),
         }
     }
 
