@@ -1,36 +1,16 @@
-7. send Ping from one node to other ++ handle ping on the receiving node - done
-2. Add node to the routing table in store message - done
-8. send PingReply from the receiving node to the source node - done
-
-3. WaitingList: By 8th Oct - done
-    - draft - done
-    - cleaner - done
-    - Message Id generation - done
-    - AsyncNetwork to own WaitingList - done
-    - AsyncNetwork to support method which can put an entry in waiting list - done
-    - decide if this needs arc - done
-0. Add node as RPC (?): By 8th Oct
-------
-0. FindValue: By 15th Oct - done
-0. Refactor message/executor and node/executor to accept Arc<RoutingTable>: By 15th Oct - done
-3. Provide support for findValue in executor: By 15th Oct - done
-4. FindValueReply: By 15th Oct - done
-5. Rename all message actions:
-6. Refactor action registration code into action registration
-
-0. FindNode: By 15th Oct
-0. FindNodeReply: By 15th Oct
-2. Server: By 15th Oct
-1. Methods for clone and use those clone methods: By 15th Oct
-------
-0. Shutdown server
-4. Go through Kademlia blog/paper once
-0. See if there are gaps in what has been built (like LRU for nodes in a bucket)
-5. Remove node?
-1. Iterate find
+1. Server
+2. Methods for clone and use those clone methods
+3. Check from the research paper if Get is done by key and not key_id.
+   If yes, then what is the role of key_id.
+4. Server CLI
+5. Shutdown server
+6. Go through Kademlia blog/paper once
+7. See if there are gaps in what has been built (like LRU for nodes in a bucket)
+8. Remove node
+9. Iterate find
     - Replication
-9. Documentation
-10. E2E
-11. Client
-12. Blog
-6. Node health check
+10. Documentation
+11. E2E
+12. Client
+13. Blog
+14. Node health check
