@@ -39,7 +39,7 @@ impl Source {
     }
 }
 
-pub(crate) const U32_SIZE: usize = size_of::<u32>();
+pub(crate) const RESERVED_MESSAGE_SIZE: usize = size_of::<u32>();
 
 pub(crate) type MessageId = i64;
 
@@ -222,7 +222,7 @@ impl Message {
     }
 
     pub(crate) fn deserialize_from(bytes: &[u8]) -> bincode::Result<Message> {
-        bincode::deserialize(&bytes[U32_SIZE..])
+        bincode::deserialize(&bytes[RESERVED_MESSAGE_SIZE..])
     }
 
     pub(crate) fn serialize(&self) -> bincode::Result<Vec<u8>> {

@@ -5,7 +5,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::net::endpoint::Endpoint;
-use crate::net::message::{Message, U32_SIZE};
+use crate::net::message::{Message, RESERVED_MESSAGE_SIZE};
 use crate::net::NetworkErrorKind;
 
 pub(crate) struct AsyncTcpConnection {
@@ -25,11 +25,11 @@ impl AsyncTcpConnection {
     }
 
     pub(crate) async fn read(&mut self) -> Result<Message, NetworkErrorKind> {
-        let mut message_size: [u8; U32_SIZE] = [0; U32_SIZE];
+        let mut message_size: [u8; RESERVED_MESSAGE_SIZE] = [0; RESERVED_MESSAGE_SIZE];
         let _ = self.tcp_stream.peek(&mut message_size).await?;
 
         let message_size = u32::from_be_bytes(message_size) as usize;
-        let mut message = Vec::with_capacity(message_size + U32_SIZE);
+        let mut message = Vec::with_capacity(message_size + RESERVED_MESSAGE_SIZE);
 
         let _ = self.tcp_stream.read_buf(&mut message).await?;
         Ok(Message::deserialize_from(&message[..])?)
