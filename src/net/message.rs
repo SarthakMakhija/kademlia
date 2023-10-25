@@ -248,6 +248,17 @@ impl Message {
         }
     }
 
+    pub(crate) fn source(&self) -> Option<Node> {
+        match self {
+            Store { source, .. }
+            | AddNode { source, .. }
+            | FindValue { source, .. }
+            | FindNode { source, .. } => Some(source.clone().to_node()),
+            Ping { from, .. } => Some(from.clone().to_node()),
+            _ => None,
+        }
+    }
+
     fn is_store_type(&self) -> bool {
         if let Store { .. } = self {
             return true;
