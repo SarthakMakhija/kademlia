@@ -14,19 +14,19 @@ use crate::net::wait::WaitingList;
 use crate::routing::Table;
 use crate::store::Store;
 
-struct ConnectionHandler {
+struct AsyncConnectionHandler {
     message_executor: MessageExecutor,
     add_node_executor: AddNodeExecutor,
 }
 
-impl ConnectionHandler {
+impl AsyncConnectionHandler {
     pub(crate) fn new(
         current_node: Node,
         store: Arc<dyn Store>,
         waiting_list: Arc<WaitingList>,
         routing_table: Arc<Table>
     ) -> Self {
-        ConnectionHandler {
+        AsyncConnectionHandler {
             message_executor: MessageExecutor::new(
                 current_node.clone(),
                 store,
@@ -80,7 +80,7 @@ mod tests {
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::routing::Table;
-    use crate::server::ConnectionHandler;
+    use crate::server::AsyncConnectionHandler;
     use crate::store::{InMemoryStore, Store};
     use crate::time::SystemClock;
 
@@ -108,7 +108,7 @@ mod tests {
             let connection = AsyncTcpConnection::new(stream.0);
 
             let connection_handler =
-                ConnectionHandler::new(node, store, waiting_list(), routing_table);
+                AsyncConnectionHandler::new(node, store, waiting_list(), routing_table);
 
             connection_handler.handle(connection).await;
         });
