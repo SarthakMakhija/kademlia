@@ -6,7 +6,7 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 
 use crate::net::callback::{Callback, ResponseError};
-use dashmap::mapref::one::Ref;
+
 use dashmap::DashMap;
 
 use crate::net::message::{Message, MessageId};

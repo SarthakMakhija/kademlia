@@ -8,7 +8,7 @@ use crate::executor::node::AddNodeExecutor;
 use crate::executor::response::{ChanneledMessage, MessageResponse};
 use crate::net::connection::AsyncTcpConnection;
 use crate::net::message::Message;
-use crate::net::NetworkErrorKind;
+
 use crate::net::node::Node;
 use crate::net::wait::WaitingList;
 use crate::routing::Table;
@@ -105,7 +105,7 @@ mod tests {
             let tcp_listener = listener_result.unwrap();
             let stream = tcp_listener.accept().await.unwrap();
 
-            let mut connection = AsyncTcpConnection::new(stream.0);
+            let connection = AsyncTcpConnection::new(stream.0);
 
             let connection_handler =
                 ConnectionHandler::new(node, store, waiting_list(), routing_table);
@@ -114,7 +114,7 @@ mod tests {
         });
 
         let endpoint = Endpoint::new("localhost".to_string(), 9015);
-        let mut connection_result = AsyncTcpConnection::establish_with(&endpoint).await;
+        let connection_result = AsyncTcpConnection::establish_with(&endpoint).await;
         assert!(connection_result.is_ok());
 
         let source_node = Node::new(Endpoint::new("localhost".to_string(), 8787));

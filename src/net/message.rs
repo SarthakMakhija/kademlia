@@ -43,7 +43,7 @@ pub(crate) const U32_SIZE: usize = size_of::<u32>();
 
 pub(crate) type MessageId = i64;
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Hash, Eq, PartialEq)]
 pub(crate) enum MessageTypes {
     Store = 1,
     AddNode = 2,
