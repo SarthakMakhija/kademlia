@@ -1,7 +1,7 @@
 use num_bigint::{BigInt, Sign};
 use ripemd::{Digest, Ripemd160};
-use serde::Serialize;
 use serde::Deserialize;
+use serde::Serialize;
 
 const BITS_IN_BYTE: usize = 8;
 
@@ -26,7 +26,7 @@ impl Id {
         let id_length_in_bits = id.len() * BITS_IN_BYTE;
         Id {
             id,
-            id_length_in_bits
+            id_length_in_bits,
         }
     }
 
@@ -49,7 +49,9 @@ impl Id {
     }
 
     pub(crate) fn distance_from(&self, other: &Id) -> BigInt {
-        let distance: Vec<u8> = self.id.iter()
+        let distance: Vec<u8> = self
+            .id
+            .iter()
             .zip(other.id.iter())
             .map(|(&first_id, &other_id)| first_id ^ other_id)
             .collect();
@@ -62,7 +64,7 @@ impl Id {
         let id_length_in_bits = id.len() * BITS_IN_BYTE;
         Id {
             id,
-            id_length_in_bits
+            id_length_in_bits,
         }
     }
 
@@ -86,8 +88,8 @@ impl Id {
 mod tests {
     use num_bigint::{BigInt, Sign};
 
+    use crate::id::{Id, EXPECTED_ID_LENGTH_IN_BYTES};
     use hex_literal::hex;
-    use crate::id::{EXPECTED_ID_LENGTH_IN_BYTES, Id};
 
     #[test]
     fn id_as_big_endian() {
@@ -96,7 +98,10 @@ mod tests {
 
         let id_as_bigint = BigInt::from_bytes_be(Sign::Plus, &id.id);
         let hex_bigint = format!("{:X}", id_as_bigint);
-        assert_eq!(hex_bigint, "7f772647d88750add82d8e1a7a3e5c0902a346a3".to_uppercase());
+        assert_eq!(
+            hex_bigint,
+            "7f772647d88750add82d8e1a7a3e5c0902a346a3".to_uppercase()
+        );
     }
 
     #[test]
@@ -113,7 +118,7 @@ mod tests {
 
     #[test]
     fn distance_of_id_from_itself() {
-        let id = Id::new( vec![0; EXPECTED_ID_LENGTH_IN_BYTES]);
+        let id = Id::new(vec![0; EXPECTED_ID_LENGTH_IN_BYTES]);
         assert_eq!(BigInt::from(0), id.distance_from(&id));
     }
 
@@ -122,13 +127,14 @@ mod tests {
         let id = Id::new(vec![0; EXPECTED_ID_LENGTH_IN_BYTES]);
         let other_id = Id::new(vec![1; EXPECTED_ID_LENGTH_IN_BYTES]);
 
-        let expected_distance = BigInt::from_bytes_be(Sign::Plus, &vec![1; EXPECTED_ID_LENGTH_IN_BYTES]);
+        let expected_distance =
+            BigInt::from_bytes_be(Sign::Plus, &vec![1; EXPECTED_ID_LENGTH_IN_BYTES]);
         assert_eq!(expected_distance, id.distance_from(&other_id));
     }
 
     #[test]
     fn differing_bit_position_among_16_bits_id_1() {
-        let id: u16 = 511;       //0000_0001 1111_1111 => big_endian => 1111_1111 1111_0001
+        let id: u16 = 511; //0000_0001 1111_1111 => big_endian => 1111_1111 1111_0001
         let other_id: u16 = 255; //0000_0000 1111_1111 => big_endian => 1111_1111 0000_0000
 
         let id = Id::new(id.to_be_bytes().to_vec());
@@ -140,7 +146,7 @@ mod tests {
 
     #[test]
     fn differing_bit_position_among_16_bits_id_2() {
-        let id: u16 = 247;       //0000_0000 1111_0111 => big_endian => 1111_0111 0000_0000
+        let id: u16 = 247; //0000_0000 1111_0111 => big_endian => 1111_0111 0000_0000
         let other_id: u16 = 255; //0000_0000 1111_1111 => big_endian => 1111_1111 0000_0000
 
         let id = Id::new(id.to_be_bytes().to_vec());
@@ -152,7 +158,7 @@ mod tests {
 
     #[test]
     fn no_differing_bit_position_among_same_16_bits_id() {
-        let id: u16 = 255;       //0000_0000 1111_1111 => big_endian => 1111_1111 0000_0000
+        let id: u16 = 255; //0000_0000 1111_1111 => big_endian => 1111_1111 0000_0000
         let other_id: u16 = 255; //0000_0000 1111_1111 => big_endian => 1111_1111 0000_0000
 
         let id = Id::new(id.to_be_bytes().to_vec());

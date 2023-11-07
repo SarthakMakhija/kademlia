@@ -6,7 +6,10 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::executor::message_action::{FindNodeMessageAction, FindValueMessageAction, MessageAction, SendPingReplyMessageAction, StoreKeyValueMessageAction};
+use crate::executor::message_action::{
+    FindNodeMessageAction, FindValueMessageAction, MessageAction, SendPingReplyMessageAction,
+    StoreKeyValueMessageAction,
+};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
 use crate::net::message::{Message, MessageTypes};
 use crate::net::node::Node;
@@ -109,11 +112,12 @@ impl MessageExecutor {
 
                             let _ = channeled_message.send_response(MessageStatus::PingDone);
                         }
-                        Message::PingReply { message_id, ..} |
-                        Message::FindValueReply { message_id, ..} |
-                        Message::FindNodeReply { message_id, .. }=> {
+                        Message::PingReply { message_id, .. }
+                        | Message::FindValueReply { message_id, .. }
+                        | Message::FindNodeReply { message_id, .. } => {
                             info!("working on a reply message in MessageExecutor");
-                            waiting_list.handle_response(message_id, Ok(channeled_message.message.clone()));
+                            waiting_list
+                                .handle_response(message_id, Ok(channeled_message.message.clone()));
 
                             let _ = channeled_message.send_response(MessageStatus::ReplyDone);
                         }
@@ -136,7 +140,12 @@ impl MessageExecutor {
         });
     }
 
-    fn message_actions(&self, current_node: Node, store: Arc<dyn Store>, routing_table: Arc<Table>) -> HashMap<MessageTypes, Box<dyn MessageAction>> {
+    fn message_actions(
+        &self,
+        current_node: Node,
+        store: Arc<dyn Store>,
+        routing_table: Arc<Table>,
+    ) -> HashMap<MessageTypes, Box<dyn MessageAction>> {
         let mut action_by_message: HashMap<MessageTypes, Box<dyn MessageAction>> = HashMap::new();
         action_by_message.insert(
             MessageTypes::Store,
@@ -148,11 +157,11 @@ impl MessageExecutor {
         );
         action_by_message.insert(
             MessageTypes::FindValue,
-            FindValueMessageAction::new(store, routing_table.clone(), self.async_network.clone())
+            FindValueMessageAction::new(store, routing_table.clone(), self.async_network.clone()),
         );
         action_by_message.insert(
             MessageTypes::FindNode,
-            FindNodeMessageAction::new(routing_table, self.async_network.clone())
+            FindNodeMessageAction::new(routing_table, self.async_network.clone()),
         );
         action_by_message
     }
@@ -182,7 +191,8 @@ mod store_message_executor {
         );
         let node_id = node.node_id();
 
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
+        let executor =
+            MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
         let submit_result = executor
             .submit(Message::store_type(
                 "kademlia".as_bytes().to_vec(),
@@ -201,7 +211,8 @@ mod store_message_executor {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
+        let executor =
+            MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -228,7 +239,8 @@ mod store_message_executor {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
+        let executor =
+            MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let submit_result = executor
             .submit(Message::store_type(
@@ -264,7 +276,12 @@ mod store_message_executor {
         );
 
         let node_id = node.node_id();
-        let executor = Arc::new(MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id)));
+        let executor = Arc::new(MessageExecutor::new(
+            node,
+            store.clone(),
+            waiting_list(),
+            Table::new(node_id),
+        ));
         let executor_clone = executor.clone();
         let store_clone = store.clone();
 
@@ -323,7 +340,8 @@ mod store_message_executor {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
+        let executor =
+            MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let submit_result = executor.shutdown().await;
         assert!(submit_result.is_ok());
@@ -357,8 +375,8 @@ mod ping_message_executor {
 
     use tokio::net::TcpListener;
 
-    use crate::executor::message::MessageExecutor;
     use crate::executor::message::ping_message_executor::setup::TestCallback;
+    use crate::executor::message::MessageExecutor;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::{Message, MessageId};
@@ -376,7 +394,7 @@ mod ping_message_executor {
         use crate::net::message::Message;
 
         pub(crate) struct TestCallback {
-           pub(crate) responses: Mutex<Vec<Message>>,
+            pub(crate) responses: Mutex<Vec<Message>>,
         }
 
         impl TestCallback {
@@ -413,7 +431,10 @@ mod ping_message_executor {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::PingReply { current_node: from, .. } = message {
+            if let Message::PingReply {
+                current_node: from, ..
+            } = message
+            {
                 assert_eq!("localhost:9090", from.endpoint().address());
             }
         });
@@ -421,7 +442,8 @@ mod ping_message_executor {
         let store = Arc::new(InMemoryStore::new());
         let node = Node::new(Endpoint::new("localhost".to_string(), 9090));
         let node_id = node.node_id();
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
+        let executor =
+            MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 7565));
         let mut ping_message = Message::ping_type(node_sending_ping);
@@ -445,7 +467,12 @@ mod ping_message_executor {
 
         let node_id = node.node_id();
         let waiting_list = waiting_list();
-        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Table::new(node_id));
+        let executor = MessageExecutor::new(
+            node.clone(),
+            store.clone(),
+            waiting_list.clone(),
+            Table::new(node_id),
+        );
 
         let message_id: MessageId = 100;
         let callback = TestCallback::new();
@@ -456,7 +483,11 @@ mod ping_message_executor {
         let submit_result = executor.submit(ping_reply_message).await;
         assert!(submit_result.is_ok());
 
-        let _ = submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+        let _ = submit_result
+            .unwrap()
+            .wait_until_response_is_received()
+            .await
+            .unwrap();
 
         let response_guard = callback.responses.lock().unwrap();
         let message = response_guard.get(0).unwrap();
@@ -474,9 +505,6 @@ mod ping_message_executor {
 
 #[cfg(test)]
 mod find_value_message_executor {
-    use std::sync::Arc;
-    use std::time::Duration;
-    use tokio::net::TcpListener;
     use crate::executor::message::find_value_message_executor::setup::TestCallback;
     use crate::executor::message::MessageExecutor;
     use crate::id::Id;
@@ -488,6 +516,9 @@ mod find_value_message_executor {
     use crate::routing::Table;
     use crate::store::{InMemoryStore, Key, Store};
     use crate::time::SystemClock;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::net::TcpListener;
 
     mod setup {
         use crate::net::callback::{Callback, ResponseError};
@@ -540,7 +571,10 @@ mod find_value_message_executor {
         });
 
         let store = Arc::new(InMemoryStore::new());
-        store.put_or_update(Key::new("kademlia".as_bytes().to_vec()), "distributed hash table".as_bytes().to_vec());
+        store.put_or_update(
+            Key::new("kademlia".as_bytes().to_vec()),
+            "distributed hash table".as_bytes().to_vec(),
+        );
 
         let node = Node::new_with_id(
             Endpoint::new("localhost".to_string(), 9090),
@@ -548,16 +582,23 @@ mod find_value_message_executor {
         );
         let node_id = node.node_id();
 
-        let executor = MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
+        let executor =
+            MessageExecutor::new(node, store.clone(), waiting_list(), Table::new(node_id));
 
         let mut find_value_message = Message::find_value_type(
-            Node::new(Endpoint::new("localhost".to_string(), 9818)), "kademlia".as_bytes().to_vec());
+            Node::new(Endpoint::new("localhost".to_string(), 9818)),
+            "kademlia".as_bytes().to_vec(),
+        );
         find_value_message.set_message_id(100);
 
         let submit_result = executor.submit(find_value_message).await;
         assert!(submit_result.is_ok());
 
-        submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+        submit_result
+            .unwrap()
+            .wait_until_response_is_received()
+            .await
+            .unwrap();
         handle.await.unwrap();
     }
 
@@ -568,20 +609,28 @@ mod find_value_message_executor {
 
         let node_id = node.node_id();
         let waiting_list = waiting_list();
-        let executor = MessageExecutor::new(node.clone(), store.clone(), waiting_list.clone(), Table::new(node_id));
+        let executor = MessageExecutor::new(
+            node.clone(),
+            store.clone(),
+            waiting_list.clone(),
+            Table::new(node_id),
+        );
 
         let message_id: MessageId = 100;
         let callback = TestCallback::new();
         waiting_list.add(message_id, callback.clone());
 
-        let find_value_reply = Message::find_value_reply_type(
-            message_id, Some("kademlia".as_bytes().to_vec()), None
-        );
+        let find_value_reply =
+            Message::find_value_reply_type(message_id, Some("kademlia".as_bytes().to_vec()), None);
 
         let submit_result = executor.submit(find_value_reply).await;
         assert!(submit_result.is_ok());
 
-        let _ = submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+        let _ = submit_result
+            .unwrap()
+            .wait_until_response_is_received()
+            .await
+            .unwrap();
 
         let response_guard = callback.responses.lock().unwrap();
         let message = response_guard.get(0).unwrap();
@@ -599,9 +648,6 @@ mod find_value_message_executor {
 
 #[cfg(test)]
 mod find_node_message_executor {
-    use std::sync::Arc;
-    use std::time::Duration;
-    use tokio::net::TcpListener;
     use crate::executor::message::find_node_message_executor::setup::TestCallback;
     use crate::executor::message::MessageExecutor;
     use crate::id::Id;
@@ -613,6 +659,9 @@ mod find_node_message_executor {
     use crate::routing::Table;
     use crate::store::InMemoryStore;
     use crate::time::SystemClock;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::net::TcpListener;
 
     mod setup {
         use crate::net::callback::{Callback, ResponseError};
@@ -674,23 +723,25 @@ mod find_node_message_executor {
         let node_id = node.node_id();
         let routing_table = Table::new(node_id);
         let executor = MessageExecutor::new(node, store, waiting_list(), routing_table.clone());
-        routing_table.add(
-            Node::new_with_id(
-                Endpoint::new("localhost".to_string(), 7070),
-                Id::new(247u16.to_be_bytes().to_vec()),
-            )
-        );
+        routing_table.add(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 7070),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        ));
 
         let mut find_node_message = Message::find_node_type(
             Node::new(Endpoint::new("localhost".to_string(), 9808)),
-            Id::new(255u16.to_be_bytes().to_vec())
+            Id::new(255u16.to_be_bytes().to_vec()),
         );
         find_node_message.set_message_id(100);
 
         let submit_result = executor.submit(find_node_message).await;
         assert!(submit_result.is_ok());
 
-        submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+        submit_result
+            .unwrap()
+            .wait_until_response_is_received()
+            .await
+            .unwrap();
         handle.await.unwrap();
     }
 
@@ -701,24 +752,31 @@ mod find_node_message_executor {
 
         let node_id = node.node_id();
         let waiting_list = waiting_list();
-        let executor = MessageExecutor::new(node.clone(), store, waiting_list.clone(), Table::new(node_id));
+        let executor = MessageExecutor::new(
+            node.clone(),
+            store,
+            waiting_list.clone(),
+            Table::new(node_id),
+        );
 
         let message_id: MessageId = 100;
         let callback = TestCallback::new();
         waiting_list.add(message_id, callback.clone());
 
         let closest_neighbors = Vec::new();
-        let find_value_reply = Message::find_node_reply_type(
-            message_id, closest_neighbors
-        );
+        let find_value_reply = Message::find_node_reply_type(message_id, closest_neighbors);
 
         let submit_result = executor.submit(find_value_reply).await;
         assert!(submit_result.is_ok());
 
-        let _ = submit_result.unwrap().wait_until_response_is_received().await.unwrap();
+        let _ = submit_result
+            .unwrap()
+            .wait_until_response_is_received()
+            .await
+            .unwrap();
 
         let response_guard = callback.responses.lock().unwrap();
-        let message= response_guard.get(0).unwrap();
+        let message = response_guard.get(0).unwrap();
 
         assert!(message.is_find_node_reply_type());
     }

@@ -18,26 +18,21 @@ struct AsyncConnectionHandler {
     message_executor: MessageExecutor,
     add_node_executor: AddNodeExecutor,
 }
-
 impl AsyncConnectionHandler {
     pub(crate) fn new(
         current_node: Node,
         store: Arc<dyn Store>,
         waiting_list: Arc<WaitingList>,
-        routing_table: Arc<Table>
+        routing_table: Arc<Table>,
     ) -> Self {
         AsyncConnectionHandler {
             message_executor: MessageExecutor::new(
                 current_node.clone(),
                 store,
                 waiting_list.clone(),
-                routing_table.clone()
+                routing_table.clone(),
             ),
-            add_node_executor: AddNodeExecutor::new(
-                current_node,
-                waiting_list,
-                routing_table
-            )
+            add_node_executor: AddNodeExecutor::new(current_node, waiting_list, routing_table),
         }
     }
 
@@ -48,18 +43,28 @@ impl AsyncConnectionHandler {
                 Self::log_error_if_any(self.message_executor.submit(message).await);
 
                 if let Some(node) = source {
-                  Self::log_error_if_any(self.add_node_executor.submit(Message::add_node_type(node)).await)
+                    Self::log_error_if_any(
+                        self.add_node_executor
+                            .submit(Message::add_node_type(node))
+                            .await,
+                    )
                 }
             }
             Err(err) => {
-                error!("received an error while reading from the connection {:?}", err)
+                error!(
+                    "received an error while reading from the connection {:?}",
+                    err
+                )
             }
         }
     }
 
     fn log_error_if_any(result: Result<MessageResponse, SendError<ChanneledMessage>>) {
         if let Err(err) = result {
-            error!("received error in submitting the message to the executor {:?}", err)
+            error!(
+                "received error in submitting the message to the executor {:?}",
+                err
+            )
         }
     }
 }
@@ -70,9 +75,8 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    use tokio::net::{TcpListener};
+    use tokio::net::TcpListener;
 
-    
     use crate::id::Id;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;

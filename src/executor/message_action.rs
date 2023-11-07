@@ -3,11 +3,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use log::warn;
 
-use crate::net::{AsyncNetwork, NetworkErrorKind};
 use crate::net::callback::{ResponseAwaitingCallback, ResponseStatus};
-use crate::net::message::{Message, Source};
 use crate::net::message::Message::AddNode;
+use crate::net::message::{Message, Source};
 use crate::net::node::Node;
+use crate::net::{AsyncNetwork, NetworkErrorKind};
 use crate::routing::Table;
 use crate::store::{Key, Store};
 
@@ -66,7 +66,7 @@ impl MessageAction for SendPingReplyMessageAction {
                 let _ = async_network
                     .send(
                         Message::ping_reply_type(current_node, message_id.unwrap()),
-                        send_to
+                        send_to,
                     )
                     .await;
             });
@@ -81,11 +81,15 @@ pub(crate) struct FindValueMessageAction {
 }
 
 impl FindValueMessageAction {
-    pub(crate) fn new(store: Arc<dyn Store>, routing_table: Arc<Table>,  async_network: Arc<AsyncNetwork>) -> Box<Self> {
+    pub(crate) fn new(
+        store: Arc<dyn Store>,
+        routing_table: Arc<Table>,
+        async_network: Arc<AsyncNetwork>,
+    ) -> Box<Self> {
         Box::new(FindValueMessageAction {
             store,
             routing_table,
-            async_network
+            async_network,
         })
     }
 }
@@ -93,22 +97,37 @@ impl FindValueMessageAction {
 #[async_trait]
 impl MessageAction for FindValueMessageAction {
     async fn act_on(&self, message: Message) {
-        if let Message::FindValue {source, message_id, key, key_id} = message {
+        if let Message::FindValue {
+            source,
+            message_id,
+            key,
+            key_id,
+        } = message
+        {
             if message_id.is_none() {
                 warn!("received a FindValue message with an empty message id, skipping the processing");
-                return
+                return;
             }
             let find_value_reply = match self.store.get(&key) {
                 //TODO: remove hardcoded 5
                 None => {
                     let neighbors = self.routing_table.closest_neighbors(&key_id, 5);
-                    let sources: Vec<Source> = neighbors.all_nodes().iter().map(|node| Source::new(node)).collect();
+                    let sources: Vec<Source> = neighbors
+                        .all_nodes()
+                        .iter()
+                        .map(|node| Source::new(node))
+                        .collect();
                     Message::find_value_reply_type(message_id.unwrap(), None, Some(sources))
                 }
-                Some(value) => Message::find_value_reply_type(message_id.unwrap(), Some(value), None),
+                Some(value) => {
+                    Message::find_value_reply_type(message_id.unwrap(), Some(value), None)
+                }
             };
 
-            let _ = self.async_network.send(find_value_reply, source.endpoint()).await;
+            let _ = self
+                .async_network
+                .send(find_value_reply, source.endpoint())
+                .await;
         }
     }
 }
@@ -122,7 +141,7 @@ impl FindNodeMessageAction {
     pub(crate) fn new(routing_table: Arc<Table>, async_network: Arc<AsyncNetwork>) -> Box<Self> {
         Box::new(FindNodeMessageAction {
             routing_table,
-            async_network
+            async_network,
         })
     }
 }
@@ -130,17 +149,31 @@ impl FindNodeMessageAction {
 #[async_trait]
 impl MessageAction for FindNodeMessageAction {
     async fn act_on(&self, message: Message) {
-        if let Message::FindNode { source, message_id, node_id } = message {
+        if let Message::FindNode {
+            source,
+            message_id,
+            node_id,
+        } = message
+        {
             if message_id.is_none() {
-                warn!("received a FindNode message with an empty message id, skipping the processing");
-                return
+                warn!(
+                    "received a FindNode message with an empty message id, skipping the processing"
+                );
+                return;
             }
             //TODO: remove hardcoded 5
             let neighbors = self.routing_table.closest_neighbors(&node_id, 5);
-            let sources: Vec<Source> = neighbors.all_nodes().iter().map(|node| Source::new(node)).collect();
+            let sources: Vec<Source> = neighbors
+                .all_nodes()
+                .iter()
+                .map(|node| Source::new(node))
+                .collect();
             let find_node_reply = Message::find_node_reply_type(message_id.unwrap(), sources);
 
-            let _ = self.async_network.send(find_node_reply, source.endpoint()).await;
+            let _ = self
+                .async_network
+                .send(find_node_reply, source.endpoint())
+                .await;
         }
     }
 }
@@ -164,12 +197,16 @@ impl AddNodeAction {
         })
     }
 
-    async fn send_ping_to(&self, node: &Node, callback: &Arc<ResponseAwaitingCallback>) -> Result<(), NetworkErrorKind> {
+    async fn send_ping_to(
+        &self,
+        node: &Node,
+        callback: &Arc<ResponseAwaitingCallback>,
+    ) -> Result<(), NetworkErrorKind> {
         self.async_network
             .send_with_message_id_expect_reply(
                 Message::ping_type(self.current_node.clone()),
                 &node.endpoint,
-                callback.clone()
+                callback.clone(),
             )
             .await
     }
@@ -251,12 +288,12 @@ mod ping_message_action_tests {
     use tokio::net::TcpListener;
 
     use crate::executor::message_action::{MessageAction, SendPingReplyMessageAction};
-    use crate::net::AsyncNetwork;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::net::AsyncNetwork;
     use crate::time::SystemClock;
 
     #[tokio::test]
@@ -272,7 +309,10 @@ mod ping_message_action_tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_ping_reply_type());
-            if let Message::PingReply { current_node: to, .. } = message {
+            if let Message::PingReply {
+                current_node: to, ..
+            } = message
+            {
                 assert_eq!("localhost:7878", to.endpoint().address());
             }
         });
@@ -283,11 +323,9 @@ mod ping_message_action_tests {
 
         let node_sending_ping = Node::new(Endpoint::new("localhost".to_string(), 8009));
         let mut ping_message = Message::ping_type(node_sending_ping);
-        ping_message.set_message_id(10) ;
+        ping_message.set_message_id(10);
 
-        message_action
-            .act_on(ping_message)
-            .await;
+        message_action.act_on(ping_message).await;
 
         handle.await.unwrap();
     }
@@ -308,19 +346,18 @@ mod add_node_action_tests {
 
     use crate::executor::message_action::{AddNodeAction, MessageAction};
     use crate::id::Id;
-    use crate::net::AsyncNetwork;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::net::AsyncNetwork;
     use crate::routing::Table;
     use crate::time::SystemClock;
 
     #[tokio::test]
     async fn act_on_add_node_message_and_add_the_node_in_routing_table() {
         let async_network = AsyncNetwork::new(waiting_list());
-        let routing_table: Arc<Table> =
-            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
+        let routing_table: Arc<Table> = Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let message_action = AddNodeAction::new(
             Node::new_with_id(
@@ -328,7 +365,7 @@ mod add_node_action_tests {
                 Id::new(255u16.to_be_bytes().to_vec()),
             ),
             routing_table.clone(),
-            async_network
+            async_network,
         );
 
         let message = Message::add_node_type(Node::new_with_id(
@@ -358,7 +395,7 @@ mod add_node_action_tests {
                 Id::new(255u16.to_be_bytes().to_vec()),
             ),
             routing_table.clone(),
-            async_network
+            async_network,
         );
 
         let message = Message::add_node_type(Node::new_with_id(
@@ -391,7 +428,8 @@ mod add_node_action_tests {
     }
 
     #[tokio::test]
-    async fn act_on_add_node_message_given_the_bucket_capacity_is_full_and_the_node_to_ping_does_not_reply() {
+    async fn act_on_add_node_message_given_the_bucket_capacity_is_full_and_the_node_to_ping_does_not_reply(
+    ) {
         let listener_result = TcpListener::bind("localhost:8436").await;
         assert!(listener_result.is_ok());
 
@@ -410,7 +448,7 @@ mod add_node_action_tests {
                 Id::new(255u16.to_be_bytes().to_vec()),
             ),
             routing_table.clone(),
-            async_network
+            async_network,
         );
 
         let message = Message::add_node_type(Node::new_with_id(
@@ -458,12 +496,12 @@ mod find_value_message_action_tests {
 
     use crate::executor::message_action::{FindValueMessageAction, MessageAction};
     use crate::id::Id;
-    use crate::net::AsyncNetwork;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::net::AsyncNetwork;
     use crate::routing::Table;
     use crate::store::{InMemoryStore, Key, Store};
     use crate::time::SystemClock;
@@ -481,27 +519,33 @@ mod find_value_message_action_tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_find_value_reply_type());
-            if let Message::FindValueReply { message_id, value, .. } = message {
+            if let Message::FindValueReply {
+                message_id, value, ..
+            } = message
+            {
                 assert_eq!(100, message_id);
                 assert_eq!("distributed hash table".as_bytes().to_vec(), value.unwrap());
             }
         });
 
         let async_network = AsyncNetwork::new(waiting_list());
-        let routing_table: Arc<Table> =
-            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
+        let routing_table: Arc<Table> = Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
-        let message_action = FindValueMessageAction::new(store.clone(), routing_table, async_network);
+        let message_action =
+            FindValueMessageAction::new(store.clone(), routing_table, async_network);
 
-        store.put_or_update(Key::new("kademlia".as_bytes().to_vec()), "distributed hash table".as_bytes().to_vec());
+        store.put_or_update(
+            Key::new("kademlia".as_bytes().to_vec()),
+            "distributed hash table".as_bytes().to_vec(),
+        );
 
         let mut message = Message::find_value_type(
             Node::new_with_id(
                 Endpoint::new("localhost".to_string(), 8712),
                 Id::new(511u16.to_be_bytes().to_vec()),
             ),
-            "kademlia".as_bytes().to_vec()
+            "kademlia".as_bytes().to_vec(),
         );
         message.set_message_id(100);
 
@@ -523,42 +567,49 @@ mod find_value_message_action_tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_find_value_reply_type());
-            if let Message::FindValueReply { message_id, value: _, neighbors, } = message {
+            if let Message::FindValueReply {
+                message_id,
+                value: _,
+                neighbors,
+            } = message
+            {
                 assert_eq!(100, message_id);
 
                 let neighbors = neighbors.unwrap();
                 assert_eq!(2, neighbors.len());
-                assert_eq!(&Id::new(247u16.to_be_bytes().to_vec()), neighbors.get(0).unwrap().node_id());
-                assert_eq!(&Id::new(249u16.to_be_bytes().to_vec()), neighbors.get(1).unwrap().node_id());
+                assert_eq!(
+                    &Id::new(247u16.to_be_bytes().to_vec()),
+                    neighbors.get(0).unwrap().node_id()
+                );
+                assert_eq!(
+                    &Id::new(249u16.to_be_bytes().to_vec()),
+                    neighbors.get(1).unwrap().node_id()
+                );
             }
         });
 
         let async_network = AsyncNetwork::new(waiting_list());
-        let routing_table: Arc<Table> =
-            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
+        let routing_table: Arc<Table> = Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let store: Arc<dyn Store> = Arc::new(InMemoryStore::new());
-        let message_action = FindValueMessageAction::new(store, routing_table.clone(), async_network);
+        let message_action =
+            FindValueMessageAction::new(store, routing_table.clone(), async_network);
 
-        routing_table.add(
-            Node::new_with_id(
-                Endpoint::new("localhost".to_string(), 7070),
-                Id::new(247u16.to_be_bytes().to_vec()),
-            )
-        );
-        routing_table.add(
-            Node::new_with_id(
-                Endpoint::new("localhost".to_string(), 8989),
-                Id::new(249u16.to_be_bytes().to_vec()),
-            )
-        );
+        routing_table.add(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 7070),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        ));
+        routing_table.add(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 8989),
+            Id::new(249u16.to_be_bytes().to_vec()),
+        ));
 
         let mut message = Message::find_value_type(
             Node::new_with_id(
                 Endpoint::new("localhost".to_string(), 9912),
                 Id::new(511u16.to_be_bytes().to_vec()),
             ),
-            "kademlia".as_bytes().to_vec()
+            "kademlia".as_bytes().to_vec(),
         );
         message.set_message_id(100);
 
@@ -583,12 +634,12 @@ mod find_node_message_action_tests {
 
     use crate::executor::message_action::{FindNodeMessageAction, MessageAction};
     use crate::id::Id;
-    use crate::net::AsyncNetwork;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::net::AsyncNetwork;
     use crate::routing::Table;
     use crate::time::SystemClock;
 
@@ -605,38 +656,41 @@ mod find_node_message_action_tests {
             let message = connection.read().await.unwrap();
 
             assert!(message.is_find_node_reply_type());
-            if let Message::FindNodeReply { message_id, neighbors, } = message {
+            if let Message::FindNodeReply {
+                message_id,
+                neighbors,
+            } = message
+            {
                 assert_eq!(100, message_id);
 
                 assert_eq!(2, neighbors.len());
-                assert_eq!(&Id::new(249u16.to_be_bytes().to_vec()), neighbors.get(0).unwrap().node_id());
-                assert_eq!(&Id::new(247u16.to_be_bytes().to_vec()), neighbors.get(1).unwrap().node_id());
+                assert_eq!(
+                    &Id::new(249u16.to_be_bytes().to_vec()),
+                    neighbors.get(0).unwrap().node_id()
+                );
+                assert_eq!(
+                    &Id::new(247u16.to_be_bytes().to_vec()),
+                    neighbors.get(1).unwrap().node_id()
+                );
             }
         });
 
         let async_network = AsyncNetwork::new(waiting_list());
-        let routing_table: Arc<Table> =
-            Table::new(Id::new(255u16.to_be_bytes().to_vec()));
+        let routing_table: Arc<Table> = Table::new(Id::new(255u16.to_be_bytes().to_vec()));
 
         let message_action = FindNodeMessageAction::new(routing_table.clone(), async_network);
 
-        routing_table.add(
-            Node::new_with_id(
-                Endpoint::new("localhost".to_string(), 7070),
-                Id::new(247u16.to_be_bytes().to_vec()),
-            )
-        );
-        routing_table.add(
-            Node::new_with_id(
-                Endpoint::new("localhost".to_string(), 8989),
-                Id::new(249u16.to_be_bytes().to_vec()),
-            )
-        );
+        routing_table.add(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 7070),
+            Id::new(247u16.to_be_bytes().to_vec()),
+        ));
+        routing_table.add(Node::new_with_id(
+            Endpoint::new("localhost".to_string(), 8989),
+            Id::new(249u16.to_be_bytes().to_vec()),
+        ));
 
         let mut message = Message::find_node_type(
-            Node::new(
-                Endpoint::new("localhost".to_string(), 9920),
-            ),
+            Node::new(Endpoint::new("localhost".to_string(), 9920)),
             Id::new(250u16.to_be_bytes().to_vec()),
         );
         message.set_message_id(100);

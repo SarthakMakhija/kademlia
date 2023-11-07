@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::io::Error;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::Arc;
 
 use crate::net::callback::Callback;
 use crate::net::connection::AsyncTcpConnection;
@@ -114,13 +114,13 @@ mod tests {
     use tokio::task::JoinHandle;
 
     use crate::id::Id;
-    use crate::net::AsyncNetwork;
     use crate::net::callback::ResponseAwaitingCallback;
     use crate::net::connection::AsyncTcpConnection;
     use crate::net::endpoint::Endpoint;
     use crate::net::message::{Message, MessageId};
     use crate::net::node::Node;
     use crate::net::wait::{WaitingList, WaitingListOptions};
+    use crate::net::AsyncNetwork;
     use crate::time::SystemClock;
 
     #[tokio::test]
@@ -184,7 +184,7 @@ mod tests {
             .send_with_message_id_expect_reply(
                 Message::ping_type(Node::new(Endpoint::new("localhost".to_string(), 5665))),
                 &Endpoint::new("localhost".to_string(), 2334),
-                ResponseAwaitingCallback::new()
+                ResponseAwaitingCallback::new(),
             )
             .await;
 

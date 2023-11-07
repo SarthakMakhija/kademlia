@@ -8,10 +8,10 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::executor::message_action::{AddNodeAction, MessageAction};
 use crate::executor::response::{ChanneledMessage, MessageResponse, MessageStatus};
-use crate::net::AsyncNetwork;
 use crate::net::message::{Message, MessageTypes};
 use crate::net::node::Node;
 use crate::net::wait::WaitingList;
+use crate::net::AsyncNetwork;
 use crate::routing::Table;
 
 pub(crate) struct AddNodeExecutor {
@@ -21,14 +21,18 @@ pub(crate) struct AddNodeExecutor {
 }
 
 impl AddNodeExecutor {
-    pub(crate) fn new(current_node: Node, waiting_list: Arc<WaitingList>, routing_table: Arc<Table>) -> Self {
+    pub(crate) fn new(
+        current_node: Node,
+        waiting_list: Arc<WaitingList>,
+        routing_table: Arc<Table>,
+    ) -> Self {
         //TODO: make 100 configurable
         let (sender, receiver) = mpsc::channel(100);
 
         let executor = AddNodeExecutor {
             sender,
             routing_table,
-            async_network: AsyncNetwork::new(waiting_list)
+            async_network: AsyncNetwork::new(waiting_list),
         };
         executor.start(receiver, current_node);
         executor
@@ -100,11 +104,11 @@ mod tests {
     use crate::net::endpoint::Endpoint;
     use crate::net::message::Message;
     use crate::net::node::Node;
-    use std::sync::Arc;
-    use std::time::Duration;
     use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::routing::Table;
     use crate::time::SystemClock;
+    use std::sync::Arc;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn submit_add_node_message_successfully() {
@@ -160,7 +164,11 @@ mod tests {
             Id::new(255u16.to_be_bytes().to_vec()),
         );
         let node_id = node.node_id();
-        let executor = Arc::new(AddNodeExecutor::new(node, waiting_list(), Table::new(node_id)));
+        let executor = Arc::new(AddNodeExecutor::new(
+            node,
+            waiting_list(),
+            Table::new(node_id),
+        ));
         let executor_clone = executor.clone();
 
         let handle = tokio::spawn(async move {
@@ -235,7 +243,6 @@ mod tests {
             .await;
         assert!(submit_result.is_err());
     }
-
 
     fn waiting_list() -> Arc<WaitingList> {
         WaitingList::new(
