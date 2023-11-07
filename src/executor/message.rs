@@ -387,10 +387,10 @@ mod ping_message_executor {
     use crate::time::SystemClock;
 
     mod setup {
-        use crate::net::callback::{Callback, ResponseError};
         use std::any::Any;
         use std::sync::{Arc, Mutex};
 
+        use crate::net::callback::{Callback, ResponseError};
         use crate::net::message::Message;
 
         pub(crate) struct TestCallback {
@@ -505,6 +505,11 @@ mod ping_message_executor {
 
 #[cfg(test)]
 mod find_value_message_executor {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use tokio::net::TcpListener;
+
     use crate::executor::message::find_value_message_executor::setup::TestCallback;
     use crate::executor::message::MessageExecutor;
     use crate::id::Id;
@@ -516,15 +521,12 @@ mod find_value_message_executor {
     use crate::routing::Table;
     use crate::store::{InMemoryStore, Key, Store};
     use crate::time::SystemClock;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use tokio::net::TcpListener;
 
     mod setup {
-        use crate::net::callback::{Callback, ResponseError};
         use std::any::Any;
         use std::sync::{Arc, Mutex};
 
+        use crate::net::callback::{Callback, ResponseError};
         use crate::net::message::Message;
 
         pub(crate) struct TestCallback {
@@ -648,6 +650,11 @@ mod find_value_message_executor {
 
 #[cfg(test)]
 mod find_node_message_executor {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use tokio::net::TcpListener;
+
     use crate::executor::message::find_node_message_executor::setup::TestCallback;
     use crate::executor::message::MessageExecutor;
     use crate::id::Id;
@@ -659,15 +666,12 @@ mod find_node_message_executor {
     use crate::routing::Table;
     use crate::store::InMemoryStore;
     use crate::time::SystemClock;
-    use std::sync::Arc;
-    use std::time::Duration;
-    use tokio::net::TcpListener;
 
     mod setup {
-        use crate::net::callback::{Callback, ResponseError};
         use std::any::Any;
         use std::sync::{Arc, Mutex};
 
+        use crate::net::callback::{Callback, ResponseError};
         use crate::net::message::Message;
 
         pub(crate) struct TestCallback {

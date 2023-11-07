@@ -86,10 +86,10 @@ impl Id {
 
 #[cfg(test)]
 mod tests {
+    use hex_literal::hex;
     use num_bigint::{BigInt, Sign};
 
     use crate::id::{Id, EXPECTED_ID_LENGTH_IN_BYTES};
-    use hex_literal::hex;
 
     #[test]
     fn id_as_big_endian() {

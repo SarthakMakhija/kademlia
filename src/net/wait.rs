@@ -5,10 +5,9 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
-use crate::net::callback::{Callback, ResponseError};
-
 use dashmap::DashMap;
 
+use crate::net::callback::{Callback, ResponseError};
 use crate::net::message::{Message, MessageId};
 use crate::time::Clock;
 
@@ -188,12 +187,12 @@ mod waiting_list_tests {
     use crate::time::SystemClock;
 
     mod setup {
-        use crate::net::callback::{Callback, ResponseError};
         use std::any::Any;
         use std::error::Error;
         use std::fmt::{Display, Formatter};
         use std::sync::{Arc, Mutex};
 
+        use crate::net::callback::{Callback, ResponseError};
         use crate::net::message::Message;
 
         pub(crate) struct TestCallback {
@@ -348,11 +347,11 @@ mod timed_callback_tests {
     use crate::time::{Clock, SystemClock};
 
     mod setup {
-        use crate::net::callback::{Callback, ResponseError};
         use std::any::Any;
         use std::ops::Add;
         use std::time::{Duration, SystemTime};
 
+        use crate::net::callback::{Callback, ResponseError};
         use crate::net::message::Message;
         use crate::time::Clock;
 

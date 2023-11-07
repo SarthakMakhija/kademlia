@@ -8,7 +8,6 @@ use crate::executor::node::AddNodeExecutor;
 use crate::executor::response::{ChanneledMessage, MessageResponse};
 use crate::net::connection::AsyncTcpConnection;
 use crate::net::message::Message;
-
 use crate::net::node::Node;
 use crate::net::wait::WaitingList;
 use crate::routing::Table;
@@ -18,6 +17,7 @@ struct AsyncConnectionHandler {
     message_executor: MessageExecutor,
     add_node_executor: AddNodeExecutor,
 }
+
 impl AsyncConnectionHandler {
     pub(crate) fn new(
         current_node: Node,

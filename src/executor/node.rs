@@ -99,6 +99,9 @@ impl AddNodeExecutor {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
     use crate::executor::node::AddNodeExecutor;
     use crate::id::Id;
     use crate::net::endpoint::Endpoint;
@@ -107,8 +110,6 @@ mod tests {
     use crate::net::wait::{WaitingList, WaitingListOptions};
     use crate::routing::Table;
     use crate::time::SystemClock;
-    use std::sync::Arc;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn submit_add_node_message_successfully() {

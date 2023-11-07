@@ -1,6 +1,7 @@
-use log::debug;
 use std::cell::RefCell;
 use std::collections::HashMap;
+
+use log::debug;
 
 use crate::id::Id;
 
@@ -16,11 +17,9 @@ impl Key {
         let key_id = Id::generate_from_bytes(&key);
         Key::new_with_id(key, key_id)
     }
-
     pub(crate) fn new_with_id(key: Vec<u8>, id: KeyId) -> Self {
         Key { id, key }
     }
-
     pub(crate) fn length_key_id(&self) -> usize {
         self.id.len()
     }
@@ -35,7 +34,6 @@ impl StoredValue {
     pub(crate) fn new(key_id: KeyId, value: Vec<u8>) -> Self {
         StoredValue { key_id, value }
     }
-
     pub(crate) fn clone_value(&self) -> Vec<u8> {
         self.value.clone()
     }
@@ -83,6 +81,7 @@ impl Store for InMemoryStore {
 }
 
 unsafe impl Send for InMemoryStore {}
+
 unsafe impl Sync for InMemoryStore {}
 
 #[cfg(test)]
