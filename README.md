@@ -1,4 +1,4 @@
-# kademlia
+# kademlia (WIP)
 
 Kademlia is a distributed hash table for p2p network. This is Kademlia's implementation in Rust.
 
